@@ -34,3 +34,25 @@ Some nomad tasks are created:
 ### Batchs
 
 When the user wants to run some SQL administration queries, a nomad batch task is used.
+
+## Usage
+
+### The configuration files
+
+### The commands to run
+
+```bash
+# Create the control-plane
+ansible-playbook control-plane.yml -e@etc/control_plane.yml
+```
+The HEAT stacks are deployed.
+`hosts.ini` has been written and provides Nomad's endpoint address.
+
+```bash
+# Create a PostgreSQL database
+ansible-playbook db.yml \
+  -e type=postgresql \
+  -e db_name=my-first-db \
+  -e db_size_gb=10
+```
+`my-first-db.yml` has been written and contains how to connect against the database.
