@@ -1,0 +1,575 @@
+heat_template_version: 2013-05-23
+
+description: HEAT used to deploy backbone resources
+
+parameters:
+    image_id:
+        type: string
+        description: Glance image ID for instances
+        default: ubuntu18.04_server
+
+    administration_net:
+        type: string
+        description: Administration network name
+
+    publication_net:
+        type: string
+        description: Public network name
+
+    gitops_repo_url:
+        type: string
+        description: Git URL used by cloud-init
+
+    gitops_repo_checkout:
+        type: string
+        description: Branch/tag/commit to use
+        default: master
+
+    internet_http_proxy_url:
+        type: string
+        description: HTTP PROXY environment variable
+
+    internet_http_no_proxy:
+        type: string
+        description: HTTP_NO_PROXY environment variable
+
+resources:
+
+#######################################################
+# Front networking for bastions
+
+    admin_ssh_net:
+        type: OS::Neutron::Net
+        properties:
+            name: adm-ssh
+
+    admin_ssh_subnet:
+        type: OS::Neutron::Subnet
+        properties:
+            name: adm-ssh
+            network_id: { get_resource: admin_ssh_net }
+            cidr: 192.168.0.0/24
+            gateway_ip: 192.168.0.1
+            dns_nameservers: [
+                127.0.0.1
+            ]
+
+    admin_ssh_router:
+        type: OS::Neutron::Router
+        properties:
+            name: adm-router
+            external_gateway_info:
+                network: { get_param: administration_net }
+
+    admin_ssh_router_interface:
+        type: OS::Neutron::RouterInterface
+        properties:
+            router_id: { get_resource: admin_ssh_router }
+            subnet_id: { get_resource: admin_ssh_subnet }
+
+{% if bastions_number > 0 %}
+#######################################################
+# Internal networking for bastions
+
+    admin_front_net:
+        type: OS::Neutron::Net
+        properties:
+            name: adm-front
+
+    admin_front_subnet:
+        type: OS::Neutron::Subnet
+        properties:
+            name: adm-front
+            network_id: { get_resource: admin_front_net }
+            cidr: 192.168.1.0/24
+            gateway_ip: 192.168.1.1
+            host_routes: [
+                {
+                    destination: 172.16.0.0/16,
+                    nexthop: 192.168.1.1
+                }
+            ]
+            dns_nameservers: [
+                127.0.0.1
+            ]
+{% endif %}
+
+#######################################################
+# Backbone routing
+
+    publication_router:
+        type: OS::Neutron::Router
+        properties:
+            name: pub-router
+            external_gateway_info:
+                network: { get_param: publication_net }
+
+{% if bastions_number > 0 %}
+    publication_router_interface:
+        type: OS::Neutron::RouterInterface
+        properties:
+            router_id: { get_resource: publication_router }
+            subnet_id: { get_resource: admin_front_subnet }
+{% endif %}
+
+#######################################################
+# Databases networking
+
+    db_net:
+        type: OS::Neutron::Net
+        properties:
+            name: db
+
+    db_subnet:
+        type: OS::Neutron::Subnet
+        properties:
+            name: db
+            network_id: { get_resource: db_net }
+            cidr: 172.16.2.0/24
+            gateway_ip: 172.16.2.1
+            host_routes: []
+            dns_nameservers: [
+                127.0.0.1
+            ]
+
+    publication_router_interface_db:
+        type: OS::Neutron::RouterInterface
+        properties:
+            router_id: { get_resource: publication_router }
+            subnet_id: { get_resource: db_subnet }
+
+#######################################################
+# Node default security group
+#
+# https://www.consul.io/docs/agent/options.html#ports
+# https://docs.openstack.org/fr/install-guide/firewalls-default-ports.html
+#
+    adm_nodes:
+        type: OS::Neutron::SecurityGroup
+        properties:
+            description: Default security group (Consul, NTP, DNS...)
+            name: adm-nodes
+            rules: [
+{% if bastions_number > 0 %}
+                {
+                    description: Accept SSH from bastions
+                    protocol: tcp,
+                    port_range_min: 22,
+                    port_range_max: 22,
+                    direction: ingress,
+                    remote_group_id: { get_resource: adm_bastions }
+                },
+{% endif %}
+                {
+                    description: HTTP calls to internet
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 80,
+                    port_range_max: 80,
+                    direction: egress
+                },
+                {
+                    description: Accept ping,
+                    protocol: icmp,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    description: Send ping,
+                    protocol: icmp,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    descriptiom: DNS calls to internet,
+                    protocol: udp,
+                    port_range_min: 53,
+                    port_range_max: 53,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    description: Consul - Server RPC address,
+                    protocol: tcp,
+                    port_range_min: 8300,
+                    port_range_max: 8300,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    description: Consul - Server RPC address,
+                    protocol: tcp,
+                    port_range_min: 8300,
+                    port_range_max: 8300,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    description: Consul - Server RPC address,
+                    protocol: udp,
+                    port_range_min: 8300,
+                    port_range_max: 8300,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    description: Consul - Server RPC address,
+                    protocol: udp,
+                    port_range_min: 8300,
+                    port_range_max: 8300,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    description: Consul - The Serf LAN port,
+                    protocol: tcp,
+                    port_range_min: 8301,
+                    port_range_max: 8301,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    description: Consul - The Serf LAN port,
+                    protocol: tcp,
+                    port_range_min: 8301,
+                    port_range_max: 8301,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    description: Consul - The Serf LAN port,
+                    protocol: udp,
+                    port_range_min: 8301,
+                    port_range_max: 8301,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    description: Consul - The Serf LAN port,
+                    protocol: udp,
+                    port_range_min: 8301,
+                    port_range_max: 8301,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    description: Consul - The Serf WAN port,
+                    protocol: tcp,
+                    port_range_min: 8302,
+                    port_range_max: 8302,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    description: Consul - The Serf WAN port,
+                    protocol: tcp,
+                    port_range_min: 8302,
+                    port_range_max: 8302,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    description: Corosync unicast,
+                    protocol: udp,
+                    port_range_min: 5404,
+                    port_range_max: 5405,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    description: Corosync unicast,
+                    protocol: udp,
+                    port_range_min: 5404,
+                    port_range_max: 5405,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    description: Openstack Nova API,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 8774,
+                    port_range_max: 8774,
+                    direction: egress
+                },
+                {
+                    description: Openstack Keystone API,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 5000,
+                    port_range_max: 5000,
+                    direction: egress
+                },
+                {
+                    description: Openstack Glance API,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 9292,
+                    port_range_max: 9292,
+                    direction: egress
+                },
+                {
+                    description: Openstack Neutron API,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 9696,
+                    port_range_max: 9696,
+                    direction: egress
+                },
+                {
+                    description: Openstack HEAT API,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 8004,
+                    port_range_max: 8004,
+                    direction: egress
+                },
+                {
+                    description: Openstack Cinder API,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 8776,
+                    port_range_max: 8776,
+                    direction: egress
+                },
+                {
+                    description: NTP to internet,
+                    protocol: tcp,
+                    port_range_min: 123,
+                    port_range_max: 123,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    description: NTP to internet,
+                    protocol: udp,
+                    port_range_min: 123,
+                    port_range_max: 123,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                }
+        ]
+
+{% if bastions_number > 0 %}
+#######################################################
+# Administration default security group
+
+    adm_bastions:
+        type: OS::Neutron::SecurityGroup
+        properties:
+            description: Security group for bastion instances
+            name: adm-bastions
+            rules: [
+                {
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 22,
+                    port_range_max: 22,
+                    direction: egress
+                }
+        ]
+{% endif %}
+
+#######################################################
+# Scheduler hints
+
+{% if bastions_number > 0 %}
+# bastion_server_group
+    bastion_server_group: 
+        type: OS::Nova::ServerGroup 
+        properties: 
+            name: bastion_server_group
+            policies: [ 'anti-affinity' ]
+{% endif %}
+
+# lb_server_group
+    lb_server_group: 
+        type: OS::Nova::ServerGroup 
+        properties: 
+            name: lb_server_group
+            policies: [ 'anti-affinity' ]
+
+#######################################################
+# Scripts de démarrage
+    node_boot_script:
+        type: OS::Heat::SoftwareConfig
+        properties:
+            config:
+                str_replace:
+                    params:
+                        $internet_http_proxy_url: { get_param : internet_http_proxy_url }
+                        $internet_http_no_proxy: { get_param : internet_http_no_proxy }
+                        $gitops_repo_checkout: { get_param: gitops_repo_checkout }
+                        $gitops_repo_url: { get_param: gitops_repo_url }
+                    template: |
+                        #!/bin/bash
+                        set -x
+
+                        # DNS
+                        # TODO: populate /etc/hosts
+
+                        # Proxy
+                        test -z $internet_http_proxy_url || export HTTPS_PROXY=$internet_http_proxy_url
+                        test -z $internet_http_proxy_url || export HTTP_PROXY=$internet_http_proxy_url
+                        test -z $internet_http_no_proxy  || export NO_PROXY=$internet_http_no_proxy
+
+                        # Deals with multi NIC and default gateways
+                        if [ $(ip link show | grep BROADCAST | grep -cv NO-CARRIER) -gt 1 ] ; then
+                            FORMER_ROUTE=$(ip r | fgrep default | awk '/192.168.0/ {print $1,$2,$3}')
+                            ip route del $FORMER_ROUTE
+                        fi
+
+                        # Install required packages to start git-ops-based auto-configuratiom
+                        if which yum > /dev/null 2>&1 ; then
+                            sed -i 's/gpgcheck=1/gpgcheck=1\nproxy=_none_/g' /etc/yum.repos.d/centos.repo
+
+                            if [ ! -z "$HTTP_PROXY" ] ; then
+                                grep -q proxy= /etc/yum.conf || echo "proxy=$HTTP_PROXY" >> /etc/yum.conf
+                            fi
+
+                            yum install --assumeyes ansible git python-netaddr centos-release-openstack-rocky
+                            yum install --assumeyes python2-openstackclient python2-heatclient
+                        else
+                            if [ ! -z "$HTTP_PROXY" ] ; then
+                                echo Acquire::http::Proxy \"$HTTP_PROXY\"\; > /etc/apt/apt.conf.d/99proxy
+                            fi
+
+                            apt update
+                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient
+                            sed -i 's/~/\/root/' /etc/ansible/ansible.cfg
+                            sed -i 's/^#remote_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                            sed -i 's/^#local_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                        fi
+
+                        # Download the ops playbook to init and bootstrap
+                        export REPO_PATH=/root/$(echo $gitops_repo_url | awk -F/ '{gsub(".git","");print $NF}')
+                        git clone -b $gitops_repo_checkout $gitops_repo_url $REPO_PATH || exit 1
+
+                        cd $REPO_PATH
+                        export ETC_PATH=$REPO_PATH/etc
+                        export ANSIBLE_REQUIREMENTS_FILE=$ETC_PATH/ansible_requirements.txt
+                        . init.sh
+                        . autoconf.sh
+
+                        # Deals with multi NIC and default gateways
+                        if [ $(ip link show | grep BROADCAST | grep -cv NO-CARRIER) -gt 1 ] ; then
+                            ip route add $FORMER_ROUTE
+                        fi
+
+{% if bastions_number > 0 %}
+#######################################################
+# Administration instances
+
+{% for counter in range(1,bastions_number + 1) %}
+# bastion-{{ counter }}
+    bastion{{ counter }}_ssh_port:
+        type: OS::Neutron::Port
+        properties:
+            network_id: { get_resource: admin_ssh_net }
+            security_groups: [{ get_resource: adm_nodes }]
+            fixed_ips:
+                - subnet_id: { get_resource: admin_ssh_subnet }
+
+    bastion{{ counter }}_front_port:
+        type: OS::Neutron::Port
+        properties:
+            network_id: { get_resource: admin_front_net }
+            security_groups: [
+                { get_resource: adm_nodes },
+                { get_resource: adm_bastions }
+            ]
+            fixed_ips:
+                - subnet_id: { get_resource: admin_front_subnet }
+
+    bastion{{ counter }}:
+        type: OS::Nova::Server
+        properties:
+            name: adm-bastion-{{ counter }}
+            image: { get_param: image_id }
+            flavor: CO1.1
+            networks:
+                - port: { get_resource: bastion{{ counter }}_ssh_port }
+                - port: { get_resource: bastion{{ counter }}_front_port }
+            metadata: {
+                group: bastion
+            }
+            scheduler_hints: 
+                group: { get_resource: bastion_server_group }
+            user_data_format: SOFTWARE_CONFIG
+            user_data: { get_resource: node_boot_script }
+
+    bastion{{ counter }}_floating_ip:
+        type: OS::Nova::FloatingIPAssociation
+        properties:
+            floating_ip: {{ bastion_ip_ids[counter-1] }}
+            server_id: { get_resource: bastion{{ counter }} }
+
+{% endfor %}
+{% endif %}
+
+#######################################################
+# Ingress instances
+
+{% for counter in range(1, lb_number + 1) %}
+# {{ node_name }}-{{ counter }}
+    {{ node_name }}{{ counter }}_front_port:
+        type: OS::Neutron::Port
+        properties:
+            network_id: { get_resource: admin_front_net }
+            security_groups: [
+                { get_resource: adm_nodes },
+                { get_resource: pub_nodes }
+            ]
+            fixed_ips:
+                - subnet_id: { get_resource: admin_front_subnet }
+
+    {{ node_name }}{{ counter }}:
+        type: OS::Nova::Server
+        properties:
+            name: pub-{{ node_name }}-{{ counter }}
+            image: { get_param: image_id }
+            flavor: CO1.1
+            networks:
+                - port: { get_resource: {{ node_name }}{{ counter }}_front_port }
+            metadata: {
+                group: {{ node_name }}
+            }
+            scheduler_hints: 
+                group: { get_resource: lb_server_group }
+            user_data_format: SOFTWARE_CONFIG
+            user_data: { get_resource: node_boot_script }
+
+    {{ node_name }}{{ counter }}_coredump_volume:
+        type: OS::Cinder::Volume
+        properties:
+            name: core-pub-{{ node_name }}{{ counter }}
+            size: 1
+
+    {{ node_name }}{{ counter }}_volume_attachment:
+        type: OS::Cinder::VolumeAttachment
+        properties:
+            volume_id: { get_resource: {{ node_name }}{{ counter }}_coredump_volume }
+            instance_uuid: { get_resource: {{ node_name }}{{ counter }} }
+
+{% endfor %}
+
+#######################################################
+# Outputs
+
+outputs:
+{% for counter in range(1, bastions_number + 1) %}
+    bastion{{ counter }}_private_ip:
+        description: Private IP address of bastion{{ counter }}
+        value: { get_attr: [ bastion{{ counter }}, first_address ] }
+#    bastion{{ counter }}_public_ip:
+#        description: Floating IP address of bastion{{ counter }}
+#        value: { get_attr: [ adm_bastion{{ counter }}_floating_ip, floating_ip_address ] }
+{% endfor %}
+
+    publication_router_id:
+        descriptiom: ID of the backbone / publications router
+        value: { get_resource: publication_router }
+
+    publication_floating_ip_id:
+        description: Publication floating IP ID
+        value: { get_resource: pub_floating_ip }

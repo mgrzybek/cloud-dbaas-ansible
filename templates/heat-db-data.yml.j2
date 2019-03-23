@@ -1,0 +1,39 @@
+heat_template_version: 2013-05-23
+
+description: Storage resources for {{ db_name }}
+
+resources:
+
+#######################################################
+# Stockage objets
+
+{% for container in heat_stack_data.data.swift %}
+# Conteneur pour {{ container.name }}
+    {{ container.name }}_swift:
+        type: OS::Swift::Container
+        properties:
+            name: {{ container.name }}
+{% endfor %}
+
+#######################################################
+# Stockage blocs
+
+{% for volume in heat_stack_data.data.cinder %}
+# Volume pour {{ volume.name }}
+    {{ volume.name }}_volume:
+        type: OS::Cinder::Volume
+        properties:
+            name: {{ volume.name }}
+            size: {{ volume.size_gb }}
+{% endfor %}
+
+#######################################################
+# Sorties
+
+outputs:
+
+{% for volume in heat_stack_data.data.cinder %}
+    {{ volume.name }}:
+        descriptiom: Cinder volume ID
+        value: { get_resource: {{ volume.name }}_volume }
+{% endfor %}

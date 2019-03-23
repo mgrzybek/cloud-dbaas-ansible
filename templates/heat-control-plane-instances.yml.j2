@@ -1,0 +1,299 @@
+heat_template_version: 2013-05-23
+
+description: HEAT used to deploy a Nomad-based control plane.
+
+parameters:
+    image_id:
+        type: string
+        description: OS image to use to create the instances
+        default: ubuntu18.04_server
+
+    publication_net:
+        type: string
+        description: Public network name
+
+    publication_router_id:
+        type: string
+        description: Name of the backbone router
+
+    default_secgroup_id:
+        type: string
+        description: Default security group
+        default: adm-nodes
+
+    gitops_repo_url:
+        type: string
+        description: Git URL used by cloud-init
+
+    gitops_repo_checkout:
+        type: string
+        description: Branch/tag/commit to use
+        default: master
+
+    internet_http_proxy_url:
+        type: string
+        description: HTTP PROXY environment variable
+
+    internet_http_no_proxy:
+        type: string
+        description: HTTP_NO_PROXY environment variable
+
+    controlplanes_flavor:
+        type: string
+        description: Controlplanes flavor
+        default: CO1.1
+
+resources:
+
+#######################################################
+# Control plane networking
+
+    controlplane_net:
+        type: OS::Neutron::Net
+        properties:
+            name: control-plane
+
+    controlplane_subnet:
+        type: OS::Neutron::Subnet
+        properties:
+            name: control-plane
+            network_id: { get_resource: controlplane_net }
+            cidr: 172.16.0.0/24
+            gateway_ip: 172.16.0.1
+            host_routes: []
+            dns_nameservers: [
+                127.0.0.1
+            ]
+
+    publication_router_interface_services:
+        type: OS::Neutron::RouterInterface
+        properties:
+            router_id: { get_param: publication_router_id }
+            subnet_id: { get_resource: controlplane_subnet }
+
+    publication_router_interface_nodes:
+        type: OS::Neutron::RouterInterface
+        properties:
+            router_id: { get_param: publication_router_id }
+            subnet_id: { get_resource: node_subnet }
+
+#######################################################
+# Nomad security groups
+#
+# https://www.nomadproject.io/guides/operations/requirements.html#ports-used
+#
+    nomad_db_nodes:
+        type: OS::Neutron::SecurityGroup
+        properties:
+            description: Security group for Nomad nodes
+            name: nomad-nodes
+            rules: [
+                {
+                    description: This is used by clients and servers to serve the HTTP API. TCP only.,
+                    protocol: tcp,
+                    port_range_min: 4646,
+                    port_range_max: 4646,
+                    remote_ip_prefix: 172.16.0.0/16,
+                    direction: egress
+                },
+                {
+                    description: This is used by clients and servers to serve the HTTP API. TCP only.,
+                    protocol: tcp,
+                    port_range_min: 4646,
+                    port_range_max: 4646,
+                    remote_ip_prefix: 172.16.0.0/16,
+                    direction: ingress
+                },
+                {
+                    description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
+                    protocol: tcp,
+                    port_range_min: 4647,
+                    port_range_max: 4647,
+                    remote_ip_prefix: 172.16.0.0/16,
+                    direction: egress
+                },
+                {
+                    description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
+                    protocol: tcp,
+                    port_range_min: 4647,
+                    port_range_max: 4647,
+                    remote_ip_prefix: 172.16.0.0/16,
+                    direction: ingress
+                },
+            ]
+
+    nomad_controlplane_nodes:
+        type: OS::Neutron::SecurityGroup
+        properties:
+            description: Groupe de sécurité pour les controlplanes Nomad
+            name: nomad-controlplane-nodes
+            rules: [
+                {
+                    description: This is used by clients and servers to serve the HTTP API. TCP only.,
+                    protocol: tcp,
+                    port_range_min: 4646,
+                    port_range_max: 4646,
+                    remote_group_id: { get_resource: nomad_db_nodes },
+                    direction: ingress
+                },
+                {
+                    description: This is used by clients and servers to serve the HTTP API. TCP only.,
+                    protocol: tcp,
+                    port_range_min: 4646,
+                    port_range_max: 4646,
+                    remote_group_id: { get_resource: nomad_db_nodes },
+                    direction: egress
+                },
+                {
+                    description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
+                    protocol: tcp,
+                    port_range_min: 4647,
+                    port_range_max: 4647,
+                    remote_group_id: { get_resource: nomad_db_nodes },
+                    direction: ingress
+                },
+                {
+                    description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
+                    protocol: tcp,
+                    port_range_min: 4647,
+                    port_range_max: 4647,
+                    remote_group_id: { get_resource: nomad_db_nodes },
+                    direction: egress
+                },
+                {
+                    description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.
+                    protocol: tcp,
+                    port_range_min: 4648,
+                    port_range_max: 4648,
+                    remote_group_id: { get_resource: nomad_controlplane_nodes },
+                    direction: egress
+                },
+                {
+                    description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.
+                    protocol: udp,
+                    port_range_min: 4648,
+                    port_range_max: 4648,
+                    remote_group_id: { get_resource: nomad_controlplane_nodes },
+                    direction: ingress
+                },
+                {
+                    description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.
+                    protocol: udp,
+                    port_range_min: 4648,
+                    port_range_max: 4648,
+                    remote_group_id: { get_resource: nomad_controlplane_nodes },
+                    direction: egress
+                },
+                {
+                    description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.
+                    protocol: tcp,
+                    port_range_min: 4648,
+                    port_range_max: 4648,
+                    remote_group_id: { get_resource: nomad_controlplane_nodes },
+                    direction: ingress
+                }
+            ]
+
+#######################################################
+# Scheduler hints
+
+# controlplane_server_group
+    controlplane_server_group:
+        type: OS::Nova::ServerGroup 
+        properties: 
+            name: controlplane_server_group
+            policies: [ 'anti-affinity' ]
+
+#######################################################
+# The control plane
+
+# cloud-init script
+    controlplane_boot_script:
+        type: OS::Heat::SoftwareConfig
+        properties:
+            config:
+                str_replace:
+                    params:
+                        $internet_http_proxy_url: { get_param : internet_http_proxy_url }
+                        $internet_http_no_proxy: { get_param : internet_http_no_proxy }
+                        $gitops_repo_checkout: { get_param: gitops_repo_checkout }
+                        $gitops_repo_url: { get_param: gitops_repo_url }
+                    template: |
+                        #!/bin/bash
+                        set -x
+
+                        # DNS
+                        # TODO: populate /etc/hosts
+
+                        # Proxy
+                        test -z $internet_http_proxy_url || export HTTPS_PROXY=$internet_http_proxy_url
+                        test -z $internet_http_proxy_url || export HTTP_PROXY=$internet_http_proxy_url
+                        test -z $internet_http_no_proxy  || export NO_PROXY=$internet_http_no_proxy
+
+                        # Install required packages to start git-ops-based auto-configuratiom
+                        if which yum > /dev/null 2>&1 ; then
+                            sed -i 's/gpgcheck=1/gpgcheck=1\nproxy=_none_/g' /etc/yum.repos.d/centos.repo
+
+                            if [ ! -z "$HTTP_PROXY" ] ; then
+                                grep -q proxy= /etc/yum.conf || echo "proxy=$HTTP_PROXY" >> /etc/yum.conf
+                            fi
+
+                            yum install --assumeyes ansible git python-netaddr centos-release-openstack-rocky
+                            yum install --assumeyes python2-openstackclient python2-heatclient
+                        else
+                            if [ ! -z "$HTTP_PROXY" ] ; then
+                                echo Acquire::http::Proxy \"$HTTP_PROXY\"\; > /etc/apt/apt.conf.d/99proxy
+                            fi
+
+                            apt update
+                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient
+                            sed -i 's/~/\/root/' /etc/ansible/ansible.cfg
+                            sed -i 's/^#remote_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                            sed -i 's/^#local_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                        fi
+
+                        # Download the ops playbook to init and bootstrap
+                        export REPO_PATH=/root/$(echo $gitops_repo_url | awk -F/ '{gsub(".git","");print $NF}')
+                        git clone -b $gitops_repo_checkout $gitops_repo_url $REPO_PATH || exit 1
+
+                        cd $REPO_PATH
+                        export ETC_PATH=$REPO_PATH/etc
+                        export ANSIBLE_REQUIREMENTS_FILE=$ETC_PATH/ansible_requirements.txt
+                        . init.sh
+                        . autoconf.sh
+
+{% for counter in range(1, controlplanes_number + 1) %}
+# {{ instance_name }}-{{ counter }}
+    {{ instance_name }}{{ counter }}_front_port:
+        type: OS::Neutron::Port
+        properties:
+            network_id: { get_resource: controlplane_net }
+            security_groups: [
+                { get_param: default_secgroup_id },
+                { get_resource: nomad_controlplane_nodes }
+            ]
+            fixed_ips:
+                - subnet_id: { get_resource: controlplane_subnet }
+
+    {{ instance_name }}{{ counter }}:
+        type: OS::Nova::Server
+        properties:
+            name: pub-{{ instance_name }}-{{ counter }}
+            image: { get_param: image_id }
+            flavor: { get_param: controlplanes_flavor }
+            networks:
+                - port: { get_resource: {{ instance_name }}{{ counter }}_front_port }
+            metadata: {
+                group: {{ instance_name }}
+            }
+            scheduler_hints: 
+                group: { get_resource: controlplane_server_group }
+            user_data_format: SOFTWARE_CONFIG
+            user_data: { get_resource: controlplane_boot_script }
+
+{% endfor %}
+
+#######################################################
+# Outputs
+
+#outputs:

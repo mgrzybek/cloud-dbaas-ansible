@@ -1,0 +1,195 @@
+heat_template_version: 2013-05-23
+
+description: HEAT to deploy pacemaker-based database engines
+
+parameters:
+    image_id:
+        type: string
+        description: OS image to use to create the instances
+        default: ubuntu18.04_server
+
+    default_secgroup_id:
+        type: string
+        description: Default security group
+        default: adm-nodes
+
+    gitops_repo_url:
+        type: string
+        description: Git URL used by cloud-init
+
+    gitops_repo_checkout:
+        type: string
+        description: Branch/tag/commit to use
+        default: master
+
+    internet_http_proxy_url:
+        type: string
+        description: HTTP PROXY environment variable
+
+    internet_http_no_proxy:
+        type: string
+        description: HTTP_NO_PROXY environment variable
+
+    db_flavor:
+        type: string
+        description: Cluster node flavor
+        default: UG1.4
+
+    db_name:
+        type: string
+        description: Name of the database to deploy
+
+    db_volume_id:
+        type: string
+        description: Cinder volume ID to use to host data
+
+    db_net:
+        type: string
+        description: Network to use to attach the instances
+
+    db_subnet:
+        type: string
+        description: Subnetwork to use to attach the instances
+
+    db_type:
+        type: string
+        description: Database engine
+        constraints:
+            - allowed_values: [ postgresql, mongodb ]
+              description: Value must be one of postgresql, mongodb
+
+    db_publication_ip_id:
+        type: string
+        description: Dedicated floating IP ID for the database
+        default: ""
+
+resources:
+
+#######################################################
+# Scheduler hints
+
+# db_server_group
+    db_server_group:
+        type: OS::Nova::ServerGroup
+        properties:
+            name: db_server_group
+            policies: [ 'anti-affinity' ]
+
+#######################################################
+# Database instances
+
+# Scripts de démarrage
+    db_boot_script:
+        type: OS::Heat::SoftwareConfig
+        properties:
+            config:
+                str_replace:
+                    params:
+                        $internet_http_proxy_url: { get_param : internet_http_proxy_url }
+                        $internet_http_no_proxy: { get_param : internet_http_no_proxy }
+                        $gitops_repo_checkout: { get_param: gitops_repo_checkout }
+                        $gitops_repo_url: { get_param: gitops_repo_url }
+                        $db_name: { get_param: db_name }
+                        $db_volume_id: { get_param: db_volume_id }
+                        $db_type: { get_param: db_type }
+                    template: |
+                        #!/bin/bash
+                        set -x
+
+                        # DNS
+                        # TODO: populate /etc/hosts
+
+                        # Proxy
+                        test -z $internet_http_proxy_url || export HTTPS_PROXY=$internet_http_proxy_url
+                        test -z $internet_http_proxy_url || export HTTP_PROXY=$internet_http_proxy_url
+                        test -z $internet_http_no_proxy  || export NO_PROXY=$internet_http_no_proxy
+
+                        # Install required packages to start git-ops-based auto-configuratiom
+                        if which yum > /dev/null 2>&1 ; then
+                            sed -i 's/gpgcheck=1/gpgcheck=1\nproxy=_none_/g' /etc/yum.repos.d/centos.repo
+
+                            if [ ! -z "$HTTP_PROXY" ] ; then
+                                grep -q proxy= /etc/yum.conf || echo "proxy=$HTTP_PROXY" >> /etc/yum.conf
+                            fi
+
+                            yum install --assumeyes ansible git python-netaddr centos-release-openstack-rocky
+                            yum install --assumeyes python2-openstackclient python2-heatclient
+                        else
+                            if [ ! -z "$HTTP_PROXY" ] ; then
+                                echo Acquire::http::Proxy \"$HTTP_PROXY\"\; > /etc/apt/apt.conf.d/99proxy
+                            fi
+
+                            apt update
+                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient
+                            sed -i 's/~/\/root/' /etc/ansible/ansible.cfg
+                            sed -i 's/^#remote_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                            sed -i 's/^#local_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                        fi
+
+                        # Download the ops playbook to init and bootstrap
+                        export REPO_PATH=/root/$(echo $gitops_repo_url | awk -F/ '{gsub(".git","");print $NF}')
+                        git clone -b $gitops_repo_checkout $gitops_repo_url $REPO_PATH || exit 1
+
+                        cd $REPO_PATH
+                        export ETC_PATH=$REPO_PATH/etc
+                        export ANSIBLE_REQUIREMENTS_FILE=$ETC_PATH/ansible_requirements.txt
+                        . init.sh
+                        . autoconf.sh
+
+{% for counter in range(1, db_number + 1) %}
+# {{ instance_name }}-{{ counter }}
+    {{ instance_name }}{{ counter }}_front_port:
+        type: OS::Neutron::Port
+        properties:
+            network_id: { get_param: db_net }
+            security_groups: [
+                { get_param: default_secgroup_id },
+                pgsql-nodes,
+                mongodb-nodes,
+                nomad-nodes
+            ]
+            fixed_ips:
+                - subnet_id: { get_param: db_subnet }
+
+    {{ instance_name }}{{ counter }}:
+        type: OS::Nova::Server
+        properties:
+            name: {{ instance_name }}-{{ counter }}
+            image: { get_param: image_id }
+            flavor: { get_param: db_flavor }
+            networks:
+                - port: { get_resource: {{ instance_name }}{{ counter }}_front_port }
+            metadata: {
+                group: {{ instance_name }}
+            }
+            scheduler_hints:
+                group: { get_resource: db_server_group }
+            user_data_format: SOFTWARE_CONFIG
+            user_data: { get_resource: db_boot_script }
+
+    {{ instance_name }}{{ counter }}_coredump_volume:
+        type: OS::Cinder::Volume
+        properties:
+            name: core-pub-{{ instance_name }}{{ counter }}
+            size: 5
+
+    {{ instance_name }}{{ counter }}_volume_attachment:
+        type: OS::Cinder::VolumeAttachment
+        properties:
+            volume_id: { get_resource: {{ instance_name }}{{ counter }}_coredump_volume }
+            instance_uuid: { get_resource: {{ instance_name }}{{ counter }} }
+
+    {{ instance_name }}{{ counter }}_docker_volume:
+        type: OS::Cinder::Volume
+        properties:
+            name: docker-pub-{{ instance_name }}{{ counter }}
+            size: 10
+
+    {{ instance_name }}{{ counter }}_docker_attachment:
+        type: OS::Cinder::VolumeAttachment
+        properties:
+            volume_id: { get_resource: {{ instance_name }}{{ counter }}_docker_volume }
+            instance_uuid: { get_resource: {{ instance_name }}{{ counter }}}
+{% endfor %}
+
+#outputs:

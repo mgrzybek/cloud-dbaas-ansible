@@ -1,0 +1,36 @@
+heat_template_version: 2013-05-23
+
+description: HEAT used to deploy publication and administration floating IPs
+
+parameters:
+    administration_net:
+        type: string
+        description: Admin network to use
+
+    publication_net:
+        type: string
+        description: Public network to use
+
+resources:
+    pub_floating_ip:
+        type: OS::Neutron::FloatingIP
+        properties:
+            floating_network_id: { get_param: publication_net }
+
+{% for counter in range(1,bastions_number + 1) %}
+    adm_bastion{{ counter }}_floating_ip:
+        type: OS::Neutron::FloatingIP
+        properties:
+            floating_network_id: { get_param: administration_net }
+{% endfor %}
+
+outputs:
+    publication_floating_ip_id:
+        description: Publication floating IP ID
+        value: { get_resource: pub_floating_ip }
+
+{% for counter in range(1,bastions_number + 1) %}
+    administration_bastion{{ counter }}_floating_ip_id:
+        description: Administration
+        value: { get_resource: adm_bastion{{ counter }}_floating_ip }
+{% endfor %}
