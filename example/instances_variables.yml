@@ -68,7 +68,7 @@ consul_cloud_join:
 #consul_consul_encrypt: 
 consul_package_state: present
 consul_consul_version: 1.4.2
-consul_http_proxy: http://10.154.68.7:8080
+consul_http_proxy:
 consul_datacenter: "dc1"
 consul_consul_bootstrap_expect: 3
 consul_config_telegraf: true
