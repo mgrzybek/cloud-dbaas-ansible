@@ -1,0 +1,229 @@
+---
+
+consul_domain_name: dbaas
+hosts_conf:
+    - ip: 8.8.8.8
+      domains:
+        - google.fr
+
+###############################################################################
+# System bootstrap
+#
+bootstrap_htpdate_servers:
+   - www.wikipedia.org
+
+bootstrap_set_hostname_from_inventory: true
+
+# Paquets RPM et deb utiles
+bootstrap_distro_packages:
+    - git
+    - lsof
+    - tcpdump
+    - xfsprogs
+
+# Paquets à supprimer
+bootstrap_distro_remove_packages:
+    - chrony
+
+# Rôle workstation
+bootstrap_http_proxy:
+bootstrap_http_proxy_git:
+bootstrap_syslog_target_protocol: tcp
+bootstrap_syslog_target_host:
+bootstrap_syslog_target_port: 514
+
+pip_extra_args: "--proxy {{ bootstrap_http_proxy }}"
+
+###############################################################################
+# Clustering
+#
+cluster_expected_votes: 2
+cluster_transport: udpu
+cluster_node_attribute_key: cluster_role
+cluster_monitoring_use_consul: true
+cluster_force_restart: true
+
+ha_storage_openstack_cloud_info_resource: cloud-info-clone
+ha_storage_cluster_attribute_value: "{{ lookup('env', 'DB_NAME') }}"
+
+#openstack_cluster_node_files_root_path: 
+openstack_cluster_node_openrc_destination: /etc/openrc.sh
+openstack_cluster_remote_resource_agents: {}
+
+ha_storage_use_clvm: false
+
+###############################################################################
+# Consul
+#
+consul_cloud_join:
+    - "provider=os"
+    - "tag_key=group"
+    - "tag_value=master"
+    - "user_name={{ lookup('env', 'OS_USERNAME') }}"
+    - "password={{ lookup('env', 'OS_PASSWORD') }}"
+    - "auth_url={{ lookup('env', 'OS_AUTH_URL') }}"
+    - "project_id={{ lookup('env', 'OS_PROJECT_ID') }}"
+    - "domain_name={{ lookup('env', 'OS_USER_DOMAIN_NAME') }}"
+#    - "insecure=true"
+#consul_consul_encrypt: 
+consul_package_state: present
+consul_consul_version: 1.4.2
+consul_http_proxy: http://10.154.68.7:8080
+consul_datacenter: "dc1"
+consul_consul_bootstrap_expect: 3
+consul_config_telegraf: true
+consul_dns_domain: "{{ consul_domain_name }}"
+consul_dns_port: 8600
+
+###############################################################################
+# Telegraf
+#
+telegraf_output_influxdb_database: 
+telegraf_output: influxdb
+telegraf_output_influxdb_urls: []
+
+###############################################################################
+# Ingress
+#
+traefik_consul:
+    - service:
+        name: "ingress"
+        port: 443
+        tags:
+            - "traefik"
+            - "traefik.enable=false"
+        enable_tag_override: false
+        checks:
+            - args: ["systemctl", "status", "traefik.service"]
+              interval: "60s"
+              timeout: "1s"
+    - service:
+        name: "ingress-ui"
+        address: 127.0.0.1
+        port: 8080
+        tags:
+            - "traefik"
+            - "traefik.enable=true"
+        enable_tag_override: false
+        checks:
+            - http: "http://127.0.0.1:8080/dashboard/"
+              interval: "60s"
+              timeout: "1s"
+    - service:
+        name: "monitoring"
+        address: 127.0.0.1
+        port: 8500
+        tags:
+            - "traefik"
+            - "traefik.enable=true"
+        enable_tag_override: false
+        checks:
+            - http: "http://127.0.0.1:8500/ui/"
+              interval: "60s"
+              timeout: "1s"
+
+traefik_domain_name: "{{ consul_domain_name }}"
+traefik_config_consul: true
+traefik_http_proxy: "{{ bootstrap_http_proxy }}"
+traefik_cluster_aware: true
+
+###############################################################################
+# Docker
+#
+# DNS for containers
+#dnsmasq_listening_interface: eth0
+dnsmasq_main_conf:
+    servers:
+        - 8.8.8.8
+dnsmasq_forwarding_zones:
+    - name: "{{ consul_domain_name }}"
+      forwarder:
+        hostname: 127.0.0.1
+        port: 8600
+
+dnsmasq_listening_interfaces:
+    - docker0
+    - lo
+
+docker_config_consul: true
+docker_cluster_aware: false
+docker_cluster_resource_name: docker-service
+
+docker_https_proxy: "{{ bootstrap_http_proxy }}"
+docker_no_proxy: {{ consul_domain_name }}
+
+docker_network_options: "--dns {{ ansible_docker0.ipv4.address }} --dns-search=node.{{ monitoring_datacenter }}.{{ consul_domain_name }} --dns-search=service.{{ monitoring_datacenter }}.{{ consul_domain_name }}"
+
+docker_log_driver: journald # gelf
+#docker_log_options:
+#  - "gelf-address=tcp://gelf.local:12201"
+
+#docker_daemon_configuration:
+#    insecure-registries: []
+
+###############################################################################
+# Nomad
+#
+nomad_http_proxy: "{{ bootstrap_http_proxy }}"
+nomad_package_state: present
+
+nomad_nomad_region: europe
+nomad_nomad_datacenter: "{{ consul_domain_name }}"
+
+###############################################################################
+# Postgresql
+
+postgresql_ha_storage:
+    openrc: "{{ openstack_cluster_node_openrc_destination }}"
+    cinder_volumes:
+        - "{{ lookup('env', 'DB_VOLUME_ID') }}"
+    volume_group: postgresql
+    filesystems:
+        - lv: data
+          size: 60%VG
+          fstype: xfs
+          mountpoint: /srv/pgsql/data
+        - lv: wal
+          size: 20%VG
+          fstype: xfs
+          mountpoint: /srv/pgsql/wal
+    append_resources:
+        - name: docker-service
+          type: "systemd:docker"
+          op:
+            - "monitor timeout=40 interval=20"
+            - "start timeout=60 interval=0"
+            - "stop timeout=60 interval=0"
+        - name: nomad-service
+          type: "systemd:nomad"
+          op:
+            - "monitor timeout=40 interval=20"
+            - "start timeout=60 interval=0"
+            - "stop timeout=60 interval=0"
+
+###############################################################################
+# MongoDB
+
+mongodb_ha_storage:
+    openrc: "{{ openstack_cluster_node_openrc_destination }}"
+    cinder_volumes:
+        - "{{ lookup('env', 'MONGODB_VOLUME_ID') }}"
+    volume_group: mongodb
+    filesystems:
+        - lv: data
+          size: 80%VG
+          fstype: xfs
+          mountpoint: /var/lib/mongodb
+    append_resources:
+        - name: docker-service
+          type: "systemd:docker"
+          op:
+            - "monitor timeout=40 interval=20"
+            - "start timeout=60 interval=0"
+            - "stop timeout=60 interval=0"
+        - name: nomad-service
+          type: "systemd:nomad"
+          op:
+            - "monitor timeout=40 interval=20"
+            - "start timeout=60 interval=0"
+            - "stop timeout=60 interval=0"

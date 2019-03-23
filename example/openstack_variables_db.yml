@@ -1,0 +1,46 @@
+---
+
+heat_stack_ip:
+    name: "db-{{ db_name}}-ip"
+    src: heat-db-ip.yml.j2
+    dest: "{{ lookup('env', 'PWD') }}/heat-ip-{{ db_name }}.yml"
+    parameters: {}
+
+heat_stack_data:
+    name: "db-{{ db_name }}-data"
+    src: heat-data.yml.j2
+    dest: "{{ lookup('env', 'PWD') }}/heat-data-{{ db_name }}.yml"
+    parameters: {}
+    data:
+        swift:
+           - name: backup-{{ db_name }}
+        cinder:
+           - name: "data-{{ db_name }}"
+             size_gb: "{{ db_size_gb }}"
+
+heat_stack_db:
+    name: "db-{{ db_name }}-cluster"
+    src: heat-db.yml.j2
+    dest: "{{ lookup('env', 'PWD') }}/heat-db-{{ db_name }}.yml"
+    parameters:
+       gitops_repo_url:
+       gitops_repo_checkout:
+
+       internet_http_proxy_url:
+       internet_http_no_proxy:
+
+       db_net: "{{ db_net }}"
+       db_subnet: "{{ db_subnet }}"
+       db_flavor: CO1.4
+       image_id: ubuntu18.04_server
+
+       db_type: "{{ db_type }}"
+       db_name: "{{ db_name }}"
+       db_volume_id: "{% if heat_data_output is defined %}{% for item in heat_data_output['stack']['outputs'] %}{% if item.output_key | regex_search('data-{{ db_name }}') %}{{ item.output_value }}{% endif %}{% endfor %}{% endif %}"
+
+hosts_ini_path: "{{ lookup('env', 'PWD') }}/hosts_{{ db_name }}.ini"
+ssh_cfg_path: "{{ lookup('env', 'PWD') }}/ssh_{{ db_name }}.cfg"
+
+db_number: 2
+
+instance_name: "db-{{ db_name }}"
