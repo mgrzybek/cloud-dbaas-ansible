@@ -25,6 +25,8 @@ heat_stack_db:
     parameters:
        gitops_repo_url:
        gitops_repo_checkout:
+       gitops_repo_username:
+       gitops_repo_password:
 
        internet_http_proxy_url:
        internet_http_no_proxy:

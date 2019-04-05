@@ -13,6 +13,8 @@ heat_stack_backbone:
     parameters:
        gitops_repo_url:
        gitops_repo_checkout:
+       gitops_repo_username:
+       gitops_repo_password:
 
        internet_http_proxy_url:
        internet_http_no_proxy:
@@ -28,6 +30,8 @@ heat_stack_control_plane:
 
        gitops_repo_url:
        gitops_repo_checkout:
+       gitops_repo_username:
+       gitops_repo_password:
 
        internet_http_proxy_url:
        internet_http_no_proxy:
