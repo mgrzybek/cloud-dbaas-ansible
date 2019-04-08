@@ -1,0 +1,50 @@
+---
+
+- name: HEAT stack generator
+  hosts: localhost
+  become: false
+  tasks:
+    - name: HEAT stack - floating IP
+      tags: always
+      block:
+        - name: HEAT template (file)
+          template: src="{{ heat_stack_ip.src }}" dest="{{ heat_stack_ip.dest }}"
+
+        - name: HEAT template (API call)
+          register: heat_ip_output
+          os_stack:
+            name: "{{ heat_stack_ip.name }}"
+            state: present
+            template: "{{ heat_stack_ip.dest }}"
+            wait: yes
+            parameters: "{{ heat_stack_ip.parameters }}"
+
+    - name: HEAT stack - persistant data
+      tags: always
+      block:
+        - name: HEAT template (file)
+          template: src="{{ heat_stack_data.src }}" dest="{{ heat_stack_data.dest }}"
+
+        - name: HEAT template (API call)
+          register: heat_data_output
+          os_stack:
+            name: "{{ heat_stack_data.name }}"
+            state: present
+            template: "{{ heat_stack_data.dest }}"
+            wait: yes
+            parameters: "{{ heat_stack_data.parameters }}"
+
+    - name: HEAT stack - compute
+      tags: db
+      block:
+        - name: HEAT template (file)
+          template: src="{{ heat_stack_db.src }}" dest="{{ heat_stack_db.dest }}"
+
+        - name: HEAT template (API call)
+          register: heat_db_output
+          os_stack:
+            name: "{{ heat_stack_db.name }}"
+            state: present
+            template: "{{ heat_stack_db.dest }}"
+            wait: yes
+            parameters: "{{ heat_stack_db.parameters }}

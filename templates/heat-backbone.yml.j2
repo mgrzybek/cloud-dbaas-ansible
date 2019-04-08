@@ -401,6 +401,8 @@ resources:
                         $internet_http_no_proxy: { get_param : internet_http_no_proxy }
                         $gitops_repo_checkout: { get_param: gitops_repo_checkout }
                         $gitops_repo_url: { get_param: gitops_repo_url }
+                        $gitops_repo_username: { get_param: gitops_repo_username }
+                        $gitops_repo_password: { get_param: gitops_repo_password }
                     template: |
                         #!/bin/bash
                         set -x
@@ -443,7 +445,12 @@ resources:
 
                         # Download the ops playbook to init and bootstrap
                         export REPO_PATH=/root/$(echo $gitops_repo_url | awk -F/ '{gsub(".git","");print $NF}')
-                        git clone -b $gitops_repo_checkout $gitops_repo_url $REPO_PATH || exit 1
+                        if [ ! -z "$gitops_repo_username$gitops_repo_password" ] ; then
+                            auth_gitops_repo_url=$(echo $gitops_repo_url | awk -F// -v user=$gitops_repo_username  -v password=$gitops_repo_password '{print $1"//"user":"password"@"$2}')
+                            git clone -b $gitops_repo_checkout $auth_gitops_repo_url $REPO_PATH || exit 1
+                        else
+                            git clone -b $gitops_repo_checkout $gitops_repo_url $REPO_PATH || exit 1
+                        fi
 
                         cd $REPO_PATH
                         export ETC_PATH=$REPO_PATH/etc

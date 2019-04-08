@@ -1,0 +1,82 @@
+---
+
+- name: HEAT stack generator
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Variables
+      tags: always
+      block:
+        - set_fact:
+            node_name: lb
+          when: node_name is not defined
+
+    - name: HEAT stack - floating IP
+      tags: always
+      block:
+        - name: HEAT template (file)
+          template: src="{{ heat_stack_ip.src }}" dest="{{ heat_stack_ip.dest }}"
+
+        - name: HEAT template (API call)
+          register: heat_ip_output
+          os_stack:
+            name: "{{ heat_stack_ip.name }}"
+            state: present
+            template: "{{ heat_stack_ip.dest }}"
+            wait: yes
+            parameters: "{{ heat_stack_ip.parameters }}"
+
+        - set_fact:
+            bastion_ip_ids: "{{ heat_ip_output.stack.outputs | json_query(query) }}"
+          vars:
+            query: "[?description=='Administration'].output_value"
+
+    - name: HEAT stack - backbone
+      tags: always
+      block:
+        - name: HEAT template (file)
+          template: src="{{ heat_stack_backbone.src }}" dest="{{ heat_stack_backbone.dest }}"
+
+        - name: HEAT template (API call)
+          register: heat_backbone_output
+          os_stack:
+            name: "{{ heat_stack_backbone.name }}"
+            state: present
+            template: "{{ heat_stack_backbone.dest }}"
+            wait: yes
+            parameters: "{{ heat_stack_backbone.parameters }}"
+
+        - name: Get public router's ID
+          with_items: "{{ heat_backbone_output['stack']['outputs'] }}"
+          when: item.output_key == "publication_router_id"
+          set_fact:
+            pub_router_id: "{{ item.output_value }}"
+
+    - name: HEAT stack - control plane
+      tags: nomad
+      block:
+        - name: HEAT template (file)
+          template: src="{{ heat_stack_controlplane.src }}" dest="{{ heat_stack_controlplane.dest }}"
+
+        - name: HEAT template (API call)
+          register: heat_metier_output
+          os_stack:
+            name: "{{ heat_stack_controlplane.name }}"
+            state: present
+            template: "{{ heat_stack_controlplane.dest }}"
+            wait: yes
+            parameters: "{{ heat_stack_controlplane.parameters }}"
+
+    - name: Inventory
+      tags: always
+      block:
+        - name: Get servers' facts
+          os_server_facts: server=*
+
+        - name: Inventory
+          template:
+            src: templates/hosts.ini.j2
+            dest: "{{ hosts_ini_path }}"
+
+        - name: SSH configuration
+          template: src=ssh.cfg.j2 dest="{{ ssh_cfg_path }}"

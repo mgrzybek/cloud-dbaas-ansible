@@ -1,0 +1,145 @@
+---
+
+###############################################################################
+
+- name: Controlplane configuration (system)
+  hosts: localhost
+  tags: os-ready
+
+  pre_tasks:
+    - name: /etc/hosts configuration
+      with_items: "{{ hosts_conf }}"
+      lineinfile:
+          path: /etc/hosts
+          regexp: '^{{ item.ip }}'
+          line: "{{ item.ip }} {{ item.domains | join(' ') }}"
+
+    - name: openrc file
+      copy:
+        src: "{{ openstack_cluster_node_openrc_source }}"
+        dest: "{{ openstack_cluster_node_openrc_destination }}"
+        mode: 600
+
+    - name: RSA keys
+      with_fileglob:
+        - "{{ lookup('env', 'ETC_PATH') }}/*.pub"
+      authorized_key:
+        user: cloudadm
+        state: present
+        key: "{{ lookup('file', item) }}"
+
+  roles:
+    - role: github/ansible-bootstrap-system
+    - role: github/ansible-consul
+    - role: github/ansible-dnsmasq
+
+  post_tasks:
+    - name: Wait for consul quorum
+      register: consul_catalog_result
+      until: consul_catalog_result.stderr | length == 0
+      retries: 100
+      delay: 30
+      shell: >
+        /usr/local/bin/consul catalog services || systemctl -q restart consul
+
+###############################################################################
+
+- name: Controlplane configuration (nomad)
+  hosts: localhost
+  tags: master
+
+  roles:
+    - role: venezia/ansible-nomad
+
+###############################################################################
+
+- name: Ingress configuration (pacemaker)
+  hosts: localhost
+  tags: pacemaker
+
+  pre_tasks:
+    - name: Consul quorum
+      shell: |
+        for s in $(awk -F '"' '/name/ {print $(NF-1)}' /etc/ansible/facts.d/cluster_nodes.fact) ; do 
+          consul members | grep -q $s || systemctl restart consul 
+          sleep 10
+        done
+
+  roles:
+    - role: github/ansible-ha-cluster
+    - role: github/ansible-openstack-ha-node
+    - role: github/ansible-dnsmasq
+
+  post_tasks:
+    - name: VG list
+      command: vgs --options name
+      register: vg_list
+
+    - when: vg_list.stdout.find('cores') < 0
+      block:
+        - name: Get core dump virtual device id
+          set_fact: coredump_device="{{ lookup('env', 'CORE_VOLUME') }}"
+
+        - name: Create VG
+          lvg:
+            vg: cores
+            pvs: /dev/disk/by-id/virtio-{{ coredump_device[:20] }}
+
+    - name: Create cores/pacemaker
+      lvol:
+        vg: cores
+        lv: pacemaker
+        size: 512m
+
+    - name: mkfs
+      filesystem:
+        dev: /dev/mapper/cores-pacemaker
+        fstype: xfs
+
+    - name: Mounting
+      mount:
+        path: /var/lib/pacemaker/cores
+        src: /dev/mapper/cores-pacemaker
+        state: mounted
+        fstype: xfs
+
+###############################################################################
+
+- name: Ingress configuration (traefik)
+  hosts: localhost
+  tags: traefik
+
+  roles:
+    - role: github/ansible-traefik
+
+  post_tasks:
+    - name: Get node number for time buffering
+      shell: echo {{ ansible_hostname }} | awk -F- '{print $NF}'
+      register: result
+
+    - set_fact:
+        wait_minutes: "{{ result.stdout }}"
+        publication_floating_ip_id: "{{ lookup('env', 'PUBLIC_IP') }}"
+
+    - pause: minutes="{{ wait_minutes }}"
+
+    - name: crmsh script to manage traefik (directories)
+      file: path=/usr/share/crmsh/scripts/traefik state=directory
+
+    - name: crmsh script to manage traefik (files)
+      copy: src=scripts/traefik.yml dest=/usr/share/crmsh/scripts/traefik/main.yml
+
+    - name: start resources
+      command: >
+        crm -w script run traefik \
+            floating_ip_id="{{ publication_floating_ip_id }}" \
+            openrc="{{ openstack_cluster_node_openrc_destination }}" \
+            attribute_name="{{ cluster_node_attribute_key }}" \
+            attribute_value="{{ cluster_node_attribute_value }}"
+
+    - name: cleanup resources
+      shell: >
+          crm_resource --locate --resource traefik-service | grep -q $(crm_node -n) \
+              || pcs resource cleanup traefik-service --node $(crm_node -n)
+
+###############################################################################

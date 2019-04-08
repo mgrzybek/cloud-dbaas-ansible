@@ -2,13 +2,13 @@
 
 heat_stack_ip:
     name: ip
-    src: heat-ip.yml.j2
-    dest: "{{ lookup('env', 'PWD') }}/heat-ip.yml"
+    src: heat-controlplane-ip.yml.j2
+    dest: "{{ lookup('env', 'PWD') }}/heat-controlplane-ip.yml"
     parameters: {}
 
 heat_stack_backbone:
     name: backbone
-    src: heat-socle.yml.j2
+    src: heat-backbone.yml.j2
     dest: "{{ lookup('env', 'PWD') }}/heat-backbone.yml"
     parameters:
        gitops_repo_url:
@@ -23,8 +23,8 @@ heat_stack_backbone:
 
 heat_stack_control_plane:
     name: control-plane
-    src: heat-control-plane.yml.j2
-    dest: "{{ lookup('env', 'PWD') }}/heat-control-plane.yml"
+    src: heat-control-plane-insctances.yml.j2
+    dest: "{{ lookup('env', 'PWD') }}/heat-control-plane-instances.yml"
     parameters:
        publication_router_id: "{{ pub_router_id }}"
 
