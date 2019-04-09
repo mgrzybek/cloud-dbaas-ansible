@@ -7,7 +7,7 @@ for f in $REPO_PATH/files/*openrc* ; do
 	source $f
 done
 
-export CONTROLPLANE_NODES_NUMBER=$(openstack server list --name controlplane | grep -ccontrolplane)
+export CONTROLPLANE_NODES_NUMBER=$(openstack server list --name controlplane | grep -c controlplane)
 
 export ANSIBLE_PLAYBOOK_OPTS=" \
 	/etc/ansible/roles/github/cloud-dbaas-ansible/autoconf_controlplane.yml \
