@@ -13,7 +13,7 @@ export ANSIBLE_PLAYBOOK_OPTS=" \
 	/etc/ansible/roles/github/cloud-dbaas-ansible/autoconf_controlplane.yml \
 	-e@$ETC_PATH/controlplane.yml \
 	-e monitoring_consul_cluster={{ansible_default_ipv4.address}} \
-	-e scheduler_bootstrap_expect=$CONTROLPLANE_NODES_NUMBER \
+	-e nomad_bootstrap_expect=$CONTROLPLANE_NODES_NUMBER \
 	-e monitoring_consul_ui=false \
 	-e openstack_cluster_node_openrc_source=$OPENRC_FILE \
 	-e openstack_cluster_node_ca_cert_source=$OS_CACERT"
@@ -22,8 +22,8 @@ export ANSIBLE_PLAYBOOK_OPTS=" \
 if echo $HOSTNAME | grep -q controlplane ; then
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,controlplane \
 		-e monitoring_server_mode=true \
-		-e scheduler_config_consul=true \
-		-e scheduler_server_mode=true \
+		-e nomad_config_consul=true \
+		-e nomad_server_mode=true \
 		-e dnsmasq_listening_interfaces=''
 fi
 
