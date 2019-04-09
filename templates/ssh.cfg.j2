@@ -18,7 +18,7 @@ Host *
 {% if db_name is defined %}
 	ControlPath				~/.ssh/mux-{{ heat_stack_db.name }}-%r@%h:%p
 {% else %}
-	ControlPath				~/.ssh/mux-{{ heat_stack_control_plane.name }}-%r@%h:%p
+	ControlPath				~/.ssh/mux-{{ heat_stack_controlplane.name }}-%r@%h:%p
 {% endif %}
 	ControlPersist			15m
 	StrictHostKeyChecking	no

@@ -22,6 +22,21 @@ parameters:
         description: Branch/tag/commit to use
         default: master
 
+    gitops_repo_username:
+        type: string
+        description: Username or token
+        constraints:
+            - length: { min: 6 }
+              description: Minimum length is 6
+
+    gitops_repo_password:
+        type: string
+        description: Secret
+        hidden: true
+        constraints:
+            - length: { min: 6 }
+              description: Minimum length is 6
+
     internet_http_proxy_url:
         type: string
         description: HTTP PROXY environment variable
@@ -29,6 +44,11 @@ parameters:
     internet_http_no_proxy:
         type: string
         description: HTTP_NO_PROXY environment variable
+
+    static_hosts:
+        type: json
+        description: JSON array of host:ip tuples
+        default:
 
     db_flavor:
         type: string
@@ -89,20 +109,29 @@ resources:
                         $internet_http_no_proxy: { get_param : internet_http_no_proxy }
                         $gitops_repo_checkout: { get_param: gitops_repo_checkout }
                         $gitops_repo_url: { get_param: gitops_repo_url }
+                        $gitops_repo_username: { get_param: gitops_repo_username }
+                        $gitops_repo_password: { get_param: gitops_repo_password }
                         $db_name: { get_param: db_name }
                         $db_volume_id: { get_param: db_volume_id }
                         $db_type: { get_param: db_type }
+                        $static_hosts: { get_param: static_hosts }
                     template: |
                         #!/bin/bash
                         set -x
 
-                        # DNS
-                        # TODO: populate /etc/hosts
-
                         # Proxy
-                        test -z $internet_http_proxy_url || export HTTPS_PROXY=$internet_http_proxy_url
-                        test -z $internet_http_proxy_url || export HTTP_PROXY=$internet_http_proxy_url
-                        test -z $internet_http_no_proxy  || export NO_PROXY=$internet_http_no_proxy
+                        if [ ! -z $internet_http_proxy_url ] ; then
+                            export HTTPS_PROXY=$internet_http_proxy_url
+                            export https_proxy=$internet_http_proxy_url
+                        fi
+                        if [ ! -z $internet_http_proxy_url ] ; then
+                            export HTTP_PROXY=$internet_http_proxy_url
+                            export http_proxy=$internet_http_proxy_url
+                        fi
+                        if [ ! -z $internet_http_no_proxy ] ; then
+                            export NO_PROXY=$internet_http_no_proxy
+                            export no_proxy=$internet_http_no_proxy
+                        fi
 
                         # Install required packages to start git-ops-based auto-configuratiom
                         if which yum > /dev/null 2>&1 ; then
@@ -113,17 +142,28 @@ resources:
                             fi
 
                             yum install --assumeyes ansible git python-netaddr centos-release-openstack-rocky
-                            yum install --assumeyes python2-openstackclient python2-heatclient
+                            yum install --assumeyes python2-openstackclient python2-heatclient jq
                         else
                             if [ ! -z "$HTTP_PROXY" ] ; then
                                 echo Acquire::http::Proxy \"$HTTP_PROXY\"\; > /etc/apt/apt.conf.d/99proxy
                             fi
 
                             apt update
-                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient
+                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient jq
                             sed -i 's/~/\/root/' /etc/ansible/ansible.cfg
                             sed -i 's/^#remote_tmp/remote_tmp/' /etc/ansible/ansible.cfg
                             sed -i 's/^#local_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                        fi
+
+                        # DNS: Populate /etc/hosts
+                        if [ ! -z "$static_hosts" ] ; then
+                            echo $static_hosts > /tmp/static_hosts
+                            cat /tmp/static_hosts \
+                                | perl -pe 's/\[|\]|{|}//g' \
+                                |  tr ',' '\n' \
+                                | awk -F: '{print $2,$1}' \
+                                | awk '{print $1,$2}' \
+                                >> /etc/hosts
                         fi
 
                         # Download the ops playbook to init and bootstrap
@@ -139,7 +179,6 @@ resources:
                         export ETC_PATH=$REPO_PATH/etc
                         export ANSIBLE_REQUIREMENTS_FILE=$ETC_PATH/ansible_requirements.txt
                         . init.sh
-                        . autoconf.sh
 
 {% for counter in range(1, db_number + 1) %}
 # {{ instance_name }}-{{ counter }}

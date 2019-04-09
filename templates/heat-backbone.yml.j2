@@ -1,4 +1,4 @@
-heat_template_version: 2013-05-23
+heat_template_version: 2015-10-15
 
 description: HEAT used to deploy backbone resources
 
@@ -25,6 +25,21 @@ parameters:
         description: Branch/tag/commit to use
         default: master
 
+    gitops_repo_username:
+        type: string
+        description: Username or token
+        constraints:
+            - length: { min: 6 }
+              description: Minimum length is 6
+
+    gitops_repo_password:
+        type: string
+        description: Secret
+        hidden: true
+        constraints:
+            - length: { min: 6 }
+              description: Minimum length is 6
+
     internet_http_proxy_url:
         type: string
         description: HTTP PROXY environment variable
@@ -32,6 +47,11 @@ parameters:
     internet_http_no_proxy:
         type: string
         description: HTTP_NO_PROXY environment variable
+
+    static_hosts:
+        type: json
+        description: JSON array of host:ip tuples
+        default:
 
 resources:
 
@@ -152,7 +172,7 @@ resources:
             rules: [
 {% if bastions_number > 0 %}
                 {
-                    description: Accept SSH from bastions
+                    #description: Accept SSH from bastions,
                     protocol: tcp,
                     port_range_min: 22,
                     port_range_max: 22,
@@ -161,7 +181,15 @@ resources:
                 },
 {% endif %}
                 {
-                    description: HTTP calls to internet
+                    #description: HTTPS calls to internet,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 443,
+                    port_range_max: 443,
+                    direction: egress
+                },
+                {
+                    #description: HTTP calls to internet,
                     remote_ip_prefix: 0.0.0.0/0,
                     protocol: tcp,
                     port_range_min: 80,
@@ -169,19 +197,27 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Accept ping,
+                    #description: HTTP proxy to internet,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    protocol: tcp,
+                    port_range_min: 8080,
+                    port_range_max: 8080,
+                    direction: egress
+                },
+                {
+                    #description: Accept ping,
                     protocol: icmp,
                     remote_ip_prefix: 0.0.0.0/0,
                     direction: ingress
                 },
                 {
-                    description: Send ping,
+                    #description: Send ping,
                     protocol: icmp,
                     remote_ip_prefix: 0.0.0.0/0,
                     direction: egress
                 },
                 {
-                    descriptiom: DNS calls to internet,
+                    #descriptiom: DNS calls to internet,
                     protocol: udp,
                     port_range_min: 53,
                     port_range_max: 53,
@@ -189,7 +225,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Consul - Server RPC address,
+                    #description: Consul - Server RPC address,
                     protocol: tcp,
                     port_range_min: 8300,
                     port_range_max: 8300,
@@ -197,7 +233,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: Consul - Server RPC address,
+                    #description: Consul - Server RPC address,
                     protocol: tcp,
                     port_range_min: 8300,
                     port_range_max: 8300,
@@ -205,7 +241,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Consul - Server RPC address,
+                    #description: Consul - Server RPC address,
                     protocol: udp,
                     port_range_min: 8300,
                     port_range_max: 8300,
@@ -213,7 +249,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: Consul - Server RPC address,
+                    #description: Consul - Server RPC address,
                     protocol: udp,
                     port_range_min: 8300,
                     port_range_max: 8300,
@@ -221,7 +257,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Consul - The Serf LAN port,
+                    #description: Consul - The Serf LAN port,
                     protocol: tcp,
                     port_range_min: 8301,
                     port_range_max: 8301,
@@ -229,7 +265,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: Consul - The Serf LAN port,
+                    #description: Consul - The Serf LAN port,
                     protocol: tcp,
                     port_range_min: 8301,
                     port_range_max: 8301,
@@ -237,7 +273,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Consul - The Serf LAN port,
+                    #description: Consul - The Serf LAN port,
                     protocol: udp,
                     port_range_min: 8301,
                     port_range_max: 8301,
@@ -245,7 +281,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: Consul - The Serf LAN port,
+                    #description: Consul - The Serf LAN port,
                     protocol: udp,
                     port_range_min: 8301,
                     port_range_max: 8301,
@@ -253,7 +289,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Consul - The Serf WAN port,
+                    #description: Consul - The Serf WAN port,
                     protocol: tcp,
                     port_range_min: 8302,
                     port_range_max: 8302,
@@ -261,7 +297,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: Consul - The Serf WAN port,
+                    #description: Consul - The Serf WAN port,
                     protocol: tcp,
                     port_range_min: 8302,
                     port_range_max: 8302,
@@ -269,7 +305,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Corosync unicast,
+                    #description: Corosync unicast,
                     protocol: udp,
                     port_range_min: 5404,
                     port_range_max: 5405,
@@ -277,7 +313,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: Corosync unicast,
+                    #description: Corosync unicast,
                     protocol: udp,
                     port_range_min: 5404,
                     port_range_max: 5405,
@@ -285,7 +321,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Openstack Nova API,
+                    #description: Openstack Nova API,
                     remote_ip_prefix: 0.0.0.0/0,
                     protocol: tcp,
                     port_range_min: 8774,
@@ -293,7 +329,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Openstack Keystone API,
+                    #description: Openstack Keystone API,
                     remote_ip_prefix: 0.0.0.0/0,
                     protocol: tcp,
                     port_range_min: 5000,
@@ -301,7 +337,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Openstack Glance API,
+                    #description: Openstack Glance API,
                     remote_ip_prefix: 0.0.0.0/0,
                     protocol: tcp,
                     port_range_min: 9292,
@@ -309,7 +345,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Openstack Neutron API,
+                    #description: Openstack Neutron API,
                     remote_ip_prefix: 0.0.0.0/0,
                     protocol: tcp,
                     port_range_min: 9696,
@@ -317,7 +353,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Openstack HEAT API,
+                    #description: Openstack HEAT API,
                     remote_ip_prefix: 0.0.0.0/0,
                     protocol: tcp,
                     port_range_min: 8004,
@@ -325,7 +361,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: Openstack Cinder API,
+                    #description: Openstack Cinder API,
                     remote_ip_prefix: 0.0.0.0/0,
                     protocol: tcp,
                     port_range_min: 8776,
@@ -333,7 +369,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: NTP to internet,
+                    #description: NTP to internet,
                     protocol: tcp,
                     port_range_min: 123,
                     port_range_max: 123,
@@ -341,7 +377,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: NTP to internet,
+                    #description: NTP to internet,
                     protocol: udp,
                     port_range_min: 123,
                     port_range_max: 123,
@@ -349,6 +385,44 @@ resources:
                     direction: egress
                 }
         ]
+
+{% if lb_number > 0 %}
+    lb_nodes:
+        type: OS::Neutron::SecurityGroup
+        properties:
+            description: Groupe de sécurité pour les serveurs de publication.
+            name: pub-nodes
+            rules: [
+                {
+                    protocol: tcp,
+                    port_range_min: 80,
+                    port_range_max: 80,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    protocol: tcp,
+                    port_range_min: 80,
+                    port_range_max: 80,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                },
+                {
+                    protocol: tcp,
+                    port_range_min: 443,
+                    port_range_max: 443,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: ingress
+                },
+                {
+                    protocol: tcp,
+                    port_range_min: 443,
+                    port_range_max: 443,
+                    remote_ip_prefix: 0.0.0.0/0,
+                    direction: egress
+                }
+            ]
+{% endif %}
 
 {% if bastions_number > 0 %}
 #######################################################
@@ -403,17 +477,24 @@ resources:
                         $gitops_repo_url: { get_param: gitops_repo_url }
                         $gitops_repo_username: { get_param: gitops_repo_username }
                         $gitops_repo_password: { get_param: gitops_repo_password }
+                        $static_hosts: { get_param: static_hosts }
                     template: |
                         #!/bin/bash
                         set -x
 
-                        # DNS
-                        # TODO: populate /etc/hosts
-
                         # Proxy
-                        test -z $internet_http_proxy_url || export HTTPS_PROXY=$internet_http_proxy_url
-                        test -z $internet_http_proxy_url || export HTTP_PROXY=$internet_http_proxy_url
-                        test -z $internet_http_no_proxy  || export NO_PROXY=$internet_http_no_proxy
+                        if [ ! -z $internet_http_proxy_url ] ; then
+                            export HTTPS_PROXY=$internet_http_proxy_url
+                            export https_proxy=$internet_http_proxy_url
+                        fi
+                        if [ ! -z $internet_http_proxy_url ] ; then
+                            export HTTP_PROXY=$internet_http_proxy_url
+                            export http_proxy=$internet_http_proxy_url
+                        fi
+                        if [ ! -z $internet_http_no_proxy ] ; then
+                            export NO_PROXY=$internet_http_no_proxy
+                            export no_proxy=$internet_http_no_proxy
+                        fi
 
                         # Deals with multi NIC and default gateways
                         if [ $(ip link show | grep BROADCAST | grep -cv NO-CARRIER) -gt 1 ] ; then
@@ -430,17 +511,28 @@ resources:
                             fi
 
                             yum install --assumeyes ansible git python-netaddr centos-release-openstack-rocky
-                            yum install --assumeyes python2-openstackclient python2-heatclient
+                            yum install --assumeyes python2-openstackclient python2-heatclient jq
                         else
                             if [ ! -z "$HTTP_PROXY" ] ; then
                                 echo Acquire::http::Proxy \"$HTTP_PROXY\"\; > /etc/apt/apt.conf.d/99proxy
                             fi
 
                             apt update
-                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient
+                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient jq
                             sed -i 's/~/\/root/' /etc/ansible/ansible.cfg
                             sed -i 's/^#remote_tmp/remote_tmp/' /etc/ansible/ansible.cfg
                             sed -i 's/^#local_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                        fi
+
+                        # DNS: Populate /etc/hosts
+                        if [ ! -z "$static_hosts" ] ; then
+                            echo $static_hosts > /tmp/static_hosts
+                            cat /tmp/static_hosts \
+                                | perl -pe 's/\[|\]|{|}//g' \
+                                |  tr ',' '\n' \
+                                | awk -F: '{print $2,$1}' \
+                                | awk '{print $1,$2}' \
+                                >> /etc/hosts
                         fi
 
                         # Download the ops playbook to init and bootstrap
@@ -456,7 +548,6 @@ resources:
                         export ETC_PATH=$REPO_PATH/etc
                         export ANSIBLE_REQUIREMENTS_FILE=$ETC_PATH/ansible_requirements.txt
                         . init.sh
-                        . autoconf.sh
 
                         # Deals with multi NIC and default gateways
                         if [ $(ip link show | grep BROADCAST | grep -cv NO-CARRIER) -gt 1 ] ; then
@@ -525,7 +616,7 @@ resources:
             network_id: { get_resource: admin_front_net }
             security_groups: [
                 { get_resource: adm_nodes },
-                { get_resource: pub_nodes }
+                { get_resource: lb_nodes }
             ]
             fixed_ips:
                 - subnet_id: { get_resource: admin_front_subnet }

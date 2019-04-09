@@ -1,4 +1,4 @@
-heat_template_version: 2013-05-23
+heat_template_version: 2015-10-15
 
 description: HEAT used to deploy a Nomad-based control plane.
 
@@ -30,6 +30,21 @@ parameters:
         description: Branch/tag/commit to use
         default: master
 
+    gitops_repo_username:
+        type: string
+        description: Username or token
+        constraints:
+            - length: { min: 6 }
+              description: Minimum length is 6
+
+    gitops_repo_password:
+        type: string
+        description: Secret
+        hidden: true
+        constraints:
+            - length: { min: 6 }
+              description: Minimum length is 6
+
     internet_http_proxy_url:
         type: string
         description: HTTP PROXY environment variable
@@ -37,6 +52,11 @@ parameters:
     internet_http_no_proxy:
         type: string
         description: HTTP_NO_PROXY environment variable
+
+    static_hosts:
+        type: json
+        description: JSON array of host:ip tuples
+        default:
 
     controlplanes_flavor:
         type: string
@@ -65,17 +85,17 @@ resources:
                 127.0.0.1
             ]
 
-    publication_router_interface_services:
+    publication_router_interface_controlplane:
         type: OS::Neutron::RouterInterface
         properties:
             router_id: { get_param: publication_router_id }
             subnet_id: { get_resource: controlplane_subnet }
 
-    publication_router_interface_nodes:
-        type: OS::Neutron::RouterInterface
-        properties:
-            router_id: { get_param: publication_router_id }
-            subnet_id: { get_resource: node_subnet }
+#    publication_router_interface_nodes:
+#        type: OS::Neutron::RouterInterface
+#        properties:
+#            router_id: { get_param: publication_router_id }
+#            subnet_id: { get_resource: node_subnet }
 
 #######################################################
 # Nomad security groups
@@ -89,7 +109,7 @@ resources:
             name: nomad-nodes
             rules: [
                 {
-                    description: This is used by clients and servers to serve the HTTP API. TCP only.,
+                    #description: This is used by clients and servers to serve the HTTP API. TCP only.,
                     protocol: tcp,
                     port_range_min: 4646,
                     port_range_max: 4646,
@@ -97,7 +117,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: This is used by clients and servers to serve the HTTP API. TCP only.,
+                    #description: This is used by clients and servers to serve the HTTP API. TCP only.,
                     protocol: tcp,
                     port_range_min: 4646,
                     port_range_max: 4646,
@@ -105,7 +125,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
+                    #description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
                     protocol: tcp,
                     port_range_min: 4647,
                     port_range_max: 4647,
@@ -113,7 +133,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
+                    #description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
                     protocol: tcp,
                     port_range_min: 4647,
                     port_range_max: 4647,
@@ -129,7 +149,7 @@ resources:
             name: nomad-controlplane-nodes
             rules: [
                 {
-                    description: This is used by clients and servers to serve the HTTP API. TCP only.,
+                    #description: This is used by clients and servers to serve the HTTP API. TCP only.,
                     protocol: tcp,
                     port_range_min: 4646,
                     port_range_max: 4646,
@@ -137,7 +157,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: This is used by clients and servers to serve the HTTP API. TCP only.,
+                    #description: This is used by clients and servers to serve the HTTP API. TCP only.,
                     protocol: tcp,
                     port_range_min: 4646,
                     port_range_max: 4646,
@@ -145,7 +165,7 @@ resources:
                     direction: egress
                 },
                 {
-                    description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
+                    #description: This is used for internal RPC communication between client agents and servers and for inter-server traffic. TCP only.,
                     protocol: tcp,
                     port_range_min: 4647,
                     port_range_max: 4647,
@@ -153,7 +173,7 @@ resources:
                     direction: ingress
                 },
                 {
-                    description: This is used for internal RPC communication between client agents and servers, and for inter-server traffic. TCP only.,
+                    #description: This is used for internal RPC communication between client agents and servers and for inter-server traffic. TCP only.,
                     protocol: tcp,
                     port_range_min: 4647,
                     port_range_max: 4647,
@@ -161,35 +181,35 @@ resources:
                     direction: egress
                 },
                 {
-                    description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.
+                    #description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.,
                     protocol: tcp,
                     port_range_min: 4648,
                     port_range_max: 4648,
-                    remote_group_id: { get_resource: nomad_controlplane_nodes },
+                    #remote_group_id: { get_resource: nomad_controlplane_nodes },
                     direction: egress
                 },
                 {
-                    description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.
+                    #description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.,
                     protocol: udp,
                     port_range_min: 4648,
                     port_range_max: 4648,
-                    remote_group_id: { get_resource: nomad_controlplane_nodes },
+                    #remote_group_id: { get_resource: nomad_controlplane_nodes },
                     direction: ingress
                 },
                 {
-                    description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.
+                    #description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.,
                     protocol: udp,
                     port_range_min: 4648,
                     port_range_max: 4648,
-                    remote_group_id: { get_resource: nomad_controlplane_nodes },
+                    #remote_group_id: { get_resource: nomad_controlplane_nodes },
                     direction: egress
                 },
                 {
-                    description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.
+                    #description: This is used by servers to gossip both over the LAN and WAN to other servers. It isn't required that Nomad clients can reach this address. TCP and UDP.,
                     protocol: tcp,
                     port_range_min: 4648,
                     port_range_max: 4648,
-                    remote_group_id: { get_resource: nomad_controlplane_nodes },
+                    #remote_group_id: { get_resource: nomad_controlplane_nodes },
                     direction: ingress
                 }
             ]
@@ -218,17 +238,26 @@ resources:
                         $internet_http_no_proxy: { get_param : internet_http_no_proxy }
                         $gitops_repo_checkout: { get_param: gitops_repo_checkout }
                         $gitops_repo_url: { get_param: gitops_repo_url }
+                        $gitops_repo_username: { get_param: gitops_repo_username }
+                        $gitops_repo_password: { get_param: gitops_repo_password }
+                        $static_hosts: { get_param: static_hosts }
                     template: |
                         #!/bin/bash
                         set -x
 
-                        # DNS
-                        # TODO: populate /etc/hosts
-
                         # Proxy
-                        test -z $internet_http_proxy_url || export HTTPS_PROXY=$internet_http_proxy_url
-                        test -z $internet_http_proxy_url || export HTTP_PROXY=$internet_http_proxy_url
-                        test -z $internet_http_no_proxy  || export NO_PROXY=$internet_http_no_proxy
+                        if [ ! -z $internet_http_proxy_url ] ; then
+                            export HTTPS_PROXY=$internet_http_proxy_url
+                            export https_proxy=$internet_http_proxy_url
+                        fi
+                        if [ ! -z $internet_http_proxy_url ] ; then
+                            export HTTP_PROXY=$internet_http_proxy_url
+                            export http_proxy=$internet_http_proxy_url
+                        fi
+                        if [ ! -z $internet_http_no_proxy ] ; then
+                            export NO_PROXY=$internet_http_no_proxy
+                            export no_proxy=$internet_http_no_proxy
+                        fi
 
                         # Install required packages to start git-ops-based auto-configuratiom
                         if which yum > /dev/null 2>&1 ; then
@@ -239,17 +268,28 @@ resources:
                             fi
 
                             yum install --assumeyes ansible git python-netaddr centos-release-openstack-rocky
-                            yum install --assumeyes python2-openstackclient python2-heatclient
+                            yum install --assumeyes python2-openstackclient python2-heatclient jq
                         else
                             if [ ! -z "$HTTP_PROXY" ] ; then
                                 echo Acquire::http::Proxy \"$HTTP_PROXY\"\; > /etc/apt/apt.conf.d/99proxy
                             fi
 
                             apt update
-                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient
+                            apt -y install ansible git python3-netaddr python3-openstackclient python3-heatclient jq
                             sed -i 's/~/\/root/' /etc/ansible/ansible.cfg
                             sed -i 's/^#remote_tmp/remote_tmp/' /etc/ansible/ansible.cfg
                             sed -i 's/^#local_tmp/remote_tmp/' /etc/ansible/ansible.cfg
+                        fi
+
+                        # DNS: Populate /etc/hosts
+                        if [ ! -z "$static_hosts" ] ; then
+                            echo $static_hosts > /tmp/static_hosts
+                            cat /tmp/static_hosts \
+                                | perl -pe 's/\[|\]|{|}//g' \
+                                |  tr ',' '\n' \
+                                | awk -F: '{print $2,$1}' \
+                                | awk '{print $1,$2}' \
+                                >> /etc/hosts
                         fi
 
                         # Download the ops playbook to init and bootstrap
@@ -265,7 +305,6 @@ resources:
                         export ETC_PATH=$REPO_PATH/etc
                         export ANSIBLE_REQUIREMENTS_FILE=$ETC_PATH/ansible_requirements.txt
                         . init.sh
-                        . autoconf.sh
 
 {% for counter in range(1, controlplanes_number + 1) %}
 # {{ instance_name }}-{{ counter }}
@@ -283,7 +322,7 @@ resources:
     {{ instance_name }}{{ counter }}:
         type: OS::Nova::Server
         properties:
-            name: pub-{{ instance_name }}-{{ counter }}
+            name: {{ instance_name }}-{{ counter }}
             image: { get_param: image_id }
             flavor: { get_param: controlplanes_flavor }
             networks:
