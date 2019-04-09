@@ -15,8 +15,8 @@ export ANSIBLE_PLAYBOOK_OPTS=" \
 	-e monitoring_consul_cluster={{ansible_default_ipv4.address}} \
 	-e nomad_bootstrap_expect=$CONTROLPLANE_NODES_NUMBER \
 	-e monitoring_consul_ui=false \
-	-e openstack_cluster_node_openrc_source=$OPENRC_FILE \
-	-e openstack_cluster_node_ca_cert_source=$OS_CACERT"
+	-e openstack_ha_node_openrc_source=$OPENRC_FILE \
+	-e openstack_ha_node_ca_cert_source=$OS_CACERT"
 
 # Master auto-conf
 if echo $HOSTNAME | grep -q controlplane ; then
