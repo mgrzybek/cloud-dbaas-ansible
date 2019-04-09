@@ -1,0 +1,56 @@
+---
+
+heat_stack_ip:
+    name: ip
+    src: heat-controlplane-ip.yml.j2
+    dest: "{{ lookup('env', 'PWD') }}/heat-control-plane-ip.yml"
+    parameters:
+        administration_net:
+        publication_net:
+
+heat_stack_backbone:
+    name: backbone
+    src: heat-backbone.yml.j2
+    dest: "{{ lookup('env', 'PWD') }}/heat-backbone.yml"
+    parameters:
+        administration_net:
+        publication_net:
+
+        gitops_repo_url:
+        gitops_repo_checkout:
+        gitops_repo_username:
+        gitops_repo_password:
+
+        internet_http_proxy_url:
+        internet_http_no_proxy:
+        static_hosts:
+
+        image_id: ubuntu18.04_server
+
+heat_stack_controlplane:
+    name: control-plane
+    src: heat-control-plane-instances.yml.j2
+    dest: "{{ lookup('env', 'PWD') }}/heat-control-plane-instances.yml"
+    parameters:
+       publication_net:
+       publication_router_id: "{{ pub_router_id }}"
+
+       gitops_repo_url:
+       gitops_repo_checkout:
+       gitops_repo_username:
+       gitops_repo_password:
+
+       internet_http_proxy_url:
+       internet_http_no_proxy:
+
+       controlplanes_flavor:
+       image_id: ubuntu18.04_server
+
+hosts_ini_path: "{{ lookup('env', 'PWD') }}/hosts.ini"
+ssh_cfg_path: "{{ lookup('env', 'PWD') }}/ssh.cfg"
+
+bastions_number: 1
+lb_number: 2
+controlplanes_number: 3
+
+instance_name: "control"
