@@ -49,7 +49,7 @@
   tags: master
 
   roles:
-    - role: venezia/ansible-nomad
+    - role: github/ansible-nomad
 
 ###############################################################################
 
