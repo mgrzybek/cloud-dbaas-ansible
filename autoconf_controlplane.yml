@@ -8,6 +8,7 @@
 
   pre_tasks:
     - name: /etc/hosts configuration
+      when: hosts_conf is defined
       with_items: "{{ hosts_conf }}"
       lineinfile:
           path: /etc/hosts
