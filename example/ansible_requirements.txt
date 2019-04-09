@@ -3,3 +3,4 @@ https://github.com/mgrzybek/ansible-ha-storage,/etc/ansible/roles/github/ansible
 https://github.com/mgrzybek/ansible-bootstrap-system,/etc/ansible/roles/github/ansible-bootstrap-system,master
 https://github.com/mgrzybek/ansible-nomad,/etc/ansible/roles/github/ansible-nomad,master
 https://github.com/mgrzybek/ansible-consul,/etc/ansible/roles/github/ansible-consul,master
+https://github.com/mgrzybek/ansible-dnsmasq,/etc/ansible/roles/github/ansible-dnsmasq,master
