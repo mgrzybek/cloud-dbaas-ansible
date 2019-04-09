@@ -17,8 +17,8 @@
 
     - name: openrc file
       copy:
-        src: "{{ openstack_cluster_node_openrc_source }}"
-        dest: "{{ openstack_cluster_node_openrc_destination }}"
+        src: "{{ openstack_ha_node_openrc_source }}"
+        dest: "{{ openstack_ha_node_openrc_destination }}"
         mode: 600
 
     - name: RSA keys
