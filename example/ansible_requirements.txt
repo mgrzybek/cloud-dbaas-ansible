@@ -1,4 +1,6 @@
+https://github.com/mgrzybek/cloud-dbaas-ansible,/etc/ansible/roles/github/cloud-dbaas-ansible,master
 https://github.com/mgrzybek/ansible-ha-cluster,/etc/ansible/roles/github/ansible-ha-cluster,master
+https://github.com/mgrzybek/ansible-openstack-ha-node,/etc/ansible/roles/github/ansible-openstack-ha-node,master
 https://github.com/mgrzybek/ansible-ha-storage,/etc/ansible/roles/github/ansible-ha-storage,master
 https://github.com/mgrzybek/ansible-bootstrap-system,/etc/ansible/roles/github/ansible-bootstrap-system,master
 https://github.com/mgrzybek/ansible-nomad,/etc/ansible/roles/github/ansible-nomad,master
