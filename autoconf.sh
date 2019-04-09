@@ -11,7 +11,7 @@ export CONTROLPLANE_NODES_NUMBER=$(openstack server list --name controlplane | g
 
 export ANSIBLE_PLAYBOOK_OPTS=" \
 	/etc/ansible/roles/github/cloud-dbaas-ansible/autoconf_controlplane.yml \
-	-e@$ETC_PATH/controlplane.yml \
+	-e@$ETC_PATH/instances_variables.yml \
 	-e monitoring_consul_cluster={{ansible_default_ipv4.address}} \
 	-e nomad_bootstrap_expect=$CONTROLPLANE_NODES_NUMBER \
 	-e monitoring_consul_ui=false \
