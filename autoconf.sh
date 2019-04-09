@@ -10,8 +10,8 @@ done
 export CONTROLPLANE_NODES_NUMBER=$(openstack server list --name controlplane | grep -ccontrolplane)
 
 export ANSIBLE_PLAYBOOK_OPTS=" \
-	/etc/ansible/roles/cloud-dbaas-ansible/autoconf_controlplane.yml \
-	-e@$ETC_PATH/control_plane.yml \
+	/etc/ansible/roles/github/cloud-dbaas-ansible/autoconf_controlplane.yml \
+	-e@$ETC_PATH/controlplane.yml \
 	-e monitoring_consul_cluster={{ansible_default_ipv4.address}} \
 	-e scheduler_bootstrap_expect=$CONTROLPLANE_NODES_NUMBER \
 	-e monitoring_consul_ui=false \
@@ -29,7 +29,7 @@ fi
 
 # LB auto-conf
 if echo $HOSTNAME | grep -q lb ; then
-	source /etc/ansible/roles/cloud-exploitation-ansible/files/generate_local_facts.sh lb
+	source /etc/ansible/roles/github/cloud-exploitation-ansible/files/generate_local_facts.sh lb
 
 	export PUBLIC_IP=$(openstack stack show ip -c outputs -f yaml \
 		| grep -A 1 publication_floating_ip_id \
@@ -62,7 +62,7 @@ fi
 
 # DB auto-conf
 if echo $HOSTNAME | grep -q db ; then
-	source /etc/ansible/roles/cloud-exploitation-ansible/files/generate_local_facts.sh db
+	source /etc/ansible/roles/github/cloud-exploitation-ansible/files/generate_local_facts.sh db
 	
 	export DOCKER_VOLUME=$(openstack volume list -f value \
 		| fgrep $HOSTNAME \
