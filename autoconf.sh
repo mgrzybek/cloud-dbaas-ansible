@@ -29,7 +29,7 @@ fi
 
 # LB auto-conf
 if echo $HOSTNAME | grep -q lb ; then
-	source /etc/ansible/roles/github/cloud-exploitation-ansible/files/generate_local_facts.sh lb
+	source /etc/ansible/roles/github/cloud-dbaas-ansible/files/generate_local_facts.sh lb
 
 	export PUBLIC_IP=$(openstack stack show ip -c outputs -f yaml \
 		| grep -A 1 publication_floating_ip_id \
@@ -62,7 +62,7 @@ fi
 
 # DB auto-conf
 if echo $HOSTNAME | grep -q db ; then
-	source /etc/ansible/roles/github/cloud-exploitation-ansible/files/generate_local_facts.sh db
+	source /etc/ansible/roles/github/cloud-dbaas-ansible/files/generate_local_facts.sh db
 	
 	export DOCKER_VOLUME=$(openstack volume list -f value \
 		| fgrep $HOSTNAME \
