@@ -21,7 +21,7 @@ export ANSIBLE_PLAYBOOK_OPTS=" \
 # Master auto-conf
 if echo $HOSTNAME | grep -q controlplane ; then
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,controlplane \
-		-e monitoring_server_mode=true \
+		-e consul_server_mode=true \
 		-e nomad_config_consul=true \
 		-e nomad_server_mode=true \
 		-e dnsmasq_listening_interfaces=''
