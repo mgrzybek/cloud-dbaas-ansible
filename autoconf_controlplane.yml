@@ -47,7 +47,7 @@
 
 - name: Controlplane configuration (nomad)
   hosts: localhost
-  tags: master
+  tags: controlplane
 
   roles:
     - role: github/ansible-nomad
