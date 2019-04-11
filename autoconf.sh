@@ -45,7 +45,7 @@ if echo $HOSTNAME | grep -q lb ; then
 		-e monitoring_consul_ui=true \
 		-e dnsmasq_listening_interfaces=''"
 
-	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,pacemaker,lb
+	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,pacemaker,traefik -v
 
 	sleep 120
 
@@ -62,7 +62,7 @@ fi
 
 # DB auto-conf
 if echo $HOSTNAME | grep -q db ; then
-	source /etc/ansible/roles/github/cloud-dbaas-ansible/files/generate_local_facts.sh db
+	source /etc/ansible/roles/github/cloud-dbaas-ansible/files/generate_local_facts.sh $DB_NAME
 	
 	export DOCKER_VOLUME=$(openstack volume list -f value \
 		| fgrep $HOSTNAME \
