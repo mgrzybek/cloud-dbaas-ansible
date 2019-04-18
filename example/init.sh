@@ -1,4 +1,9 @@
 #! /usr/bin/env bash
+#
+# This is the first script to be run by cloud-init:
+#  * clone the needed git repositories
+#  * start the autoconf script
+#
 
 sync_git() {
 	git clone $1 $2 || sleep 5
@@ -25,4 +30,6 @@ for l in $(cat $ANSIBLE_REQUIREMENTS_FILE) ; do
 	test -e $dest || $git_clone
 done
 
+# Start the autoconf script
 . /etc/ansible/roles/github/cloud-dbaas-ansible/autoconf.sh
+
