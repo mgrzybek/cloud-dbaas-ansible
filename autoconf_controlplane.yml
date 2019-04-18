@@ -141,6 +141,6 @@
     - name: cleanup resources
       shell: >
           crm_resource --locate --resource traefik-service | grep -q $(crm_node -n) \
-              || pcs resource cleanup traefik-service --node $(crm_node -n)
+              || crm -w resource cleanup traefik-service --node $(crm_node -n)
 
 ###############################################################################
