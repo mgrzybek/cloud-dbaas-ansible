@@ -1,3 +1,14 @@
+#
+# This script is used to run some playbooks according to the hostname.
+#
+# First of all, some Openstack variables are set to interact with the API:
+#  * custom certificate
+#  * openrc file
+# Then, two global variables are exported:
+#  * the number of controlplane nodes (useful for pacemaker for example)
+#  * some ansible options
+# Finally, each server type sets some specific variables
+#
 for f in $REPO_PATH/files/*.pem ; do
 	export OS_CACERT=$f
 done
@@ -18,7 +29,11 @@ export ANSIBLE_PLAYBOOK_OPTS=" \
 	-e openstack_ha_node_openrc_source=$OPENRC_FILE \
 	-e openstack_ha_node_ca_cert_source=$OS_CACERT"
 
-# Master auto-conf
+#
+# Master auto-conf:
+#  * Consul and Nomad server
+#  * No additional interface to listen on for dnsmasq
+#
 if echo $HOSTNAME | grep -q controlplane ; then
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,controlplane \
 		-e consul_server_mode=true \
@@ -27,7 +42,13 @@ if echo $HOSTNAME | grep -q controlplane ; then
 		-e dnsmasq_listening_interfaces=''
 fi
 
-# LB auto-conf
+#
+# LB auto-conf:
+#  * nodes facts are collected and an Ansible local facts file is written
+#  * we get the public address from HEAT
+#  * the core volume id is provided as an env variable for the playbook
+#  * the nodes are self-configured, we need to cleanup consul resources at the end
+#
 if echo $HOSTNAME | grep -q lb ; then
 	source /etc/ansible/roles/github/cloud-dbaas-ansible/files/generate_local_facts.sh lb
 
@@ -60,7 +81,13 @@ if echo $HOSTNAME | grep -q lb ; then
 	crm_resource --cleanup --resource consul-info
 fi
 
-# DB auto-conf
+#
+# DB auto-conf:
+#  * nodes facts are collected and an Ansible local facts file is written
+#  * the docker volume id is provided as an env variable for the playbook
+#  * the core volume id is provided as an env variable for the playbook
+#  * the nodes are self-configured, we need to cleanup consul resources at the end
+#
 if echo $HOSTNAME | grep -q db ; then
 	source /etc/ansible/roles/github/cloud-dbaas-ansible/files/generate_local_facts.sh $DB_NAME
 	
@@ -90,10 +117,13 @@ if echo $HOSTNAME | grep -q db ; then
 	if ! /usr/local/bin/consul members | grep -q server ; then
 		crm_resource --restart --resource consul-service
 	fi
-
 fi
 
-# Bastion auto-conf
+#
+# Bastion auto-conf:
+#  * this instance is only used as a gateway
+#  * in production environment we do not need them
+#
 if echo $HOSTNAME | grep -q bastion ; then
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready
 fi
