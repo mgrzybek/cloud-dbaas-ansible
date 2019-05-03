@@ -7,10 +7,10 @@
     - name: HEAT stack - floating IP
       tags: always
       block:
-        - name: HEAT template (file)
+        - name: HEAT template (file) - floating IP
           template: src="{{ heat_stack_ip.src }}" dest="{{ heat_stack_ip.dest }}"
 
-        - name: HEAT template (API call)
+        - name: HEAT template (API call) - floating IP
           register: heat_ip_output
           os_stack:
             name: "{{ heat_stack_ip.name }}"
@@ -22,10 +22,10 @@
     - name: HEAT stack - persistant data
       tags: always
       block:
-        - name: HEAT template (file)
+        - name: HEAT template (file) - persistant data
           template: src="{{ heat_stack_data.src }}" dest="{{ heat_stack_data.dest }}"
 
-        - name: HEAT template (API call)
+        - name: HEAT template (API call) - persistant data
           register: heat_data_output
           os_stack:
             name: "{{ heat_stack_data.name }}"
@@ -37,10 +37,10 @@
     - name: HEAT stack - compute
       tags: db
       block:
-        - name: HEAT template (file)
+        - name: HEAT template (file) - compute
           template: src="{{ heat_stack_db.src }}" dest="{{ heat_stack_db.dest }}"
 
-        - name: HEAT template (API call)
+        - name: HEAT template (API call) - compute
           register: heat_db_output
           os_stack:
             name: "{{ heat_stack_db.name }}"

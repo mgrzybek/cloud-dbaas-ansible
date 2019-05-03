@@ -14,10 +14,10 @@
     - name: HEAT stack - floating IP
       tags: always
       block:
-        - name: HEAT template (file)
+        - name: HEAT template (file) - floating IP
           template: src="{{ heat_stack_ip.src }}" dest="{{ heat_stack_ip.dest }}"
 
-        - name: HEAT template (API call)
+        - name: HEAT template (API call) - floating IP
           register: heat_ip_output
           os_stack:
             name: "{{ heat_stack_ip.name }}"
@@ -34,10 +34,10 @@
     - name: HEAT stack - backbone
       tags: always
       block:
-        - name: HEAT template (file)
+        - name: HEAT template (file) - backbone
           template: src="{{ heat_stack_backbone.src }}" dest="{{ heat_stack_backbone.dest }}"
 
-        - name: HEAT template (API call)
+        - name: HEAT template (API call) - backbone
           register: heat_backbone_output
           os_stack:
             name: "{{ heat_stack_backbone.name }}"
@@ -55,11 +55,11 @@
     - name: HEAT stack - control plane
       tags: nomad
       block:
-        - name: HEAT template (file)
+        - name: HEAT template (file) - control plane
           template: src="{{ heat_stack_controlplane.src }}" dest="{{ heat_stack_controlplane.dest }}"
 
-        - name: HEAT template (API call)
-          register: heat_metier_output
+        - name: HEAT template (API call) - control plane
+          register: heat_controlplane_output
           os_stack:
             name: "{{ heat_stack_controlplane.name }}"
             state: present

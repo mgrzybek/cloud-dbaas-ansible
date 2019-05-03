@@ -90,7 +90,7 @@ The HEAT stacks are deployed.
 `hosts.ini` has been written and provides Nomad's endpoint address.
 
 ```bash
-# Create a PostgreSQL database
+# Create a PostgreSQL database
 ansible-playbook $DBAAS_PLAYBOOK/database.yml \
   -e type=postgresql \
   -e db_name=my-first-db \
