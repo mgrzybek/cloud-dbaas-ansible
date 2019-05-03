@@ -39,7 +39,7 @@ if echo $HOSTNAME | grep -q controlplane ; then
 		-e consul_server_mode=true \
 		-e nomad_config_consul=true \
 		-e nomad_server_mode=true \
-		-e dnsmasq_listening_interfaces=''
+		-e dnsmasq_listening_interfaces="{{['lo']|from_yaml}}"
 fi
 
 #
@@ -63,10 +63,10 @@ if echo $HOSTNAME | grep -q lb ; then
 	export ANSIBLE_PLAYBOOK_OPTS="$ANSIBLE_PLAYBOOK_OPTS \
 		-e cluster_node_attribute_value=lb \
 		-e publication_floating_ip_id=$PUBLIC_IP \
-		-e monitoring_consul_ui=true \
-		-e dnsmasq_listening_interfaces=''"
+		-e monitoring_consul_ui=true"
 
-	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,pacemaker,traefik -v
+	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,pacemaker,traefik \
+		-e dnsmasq_listening_interfaces="{{['lo']|from_yaml}}"
 
 	sleep 120
 
@@ -107,7 +107,8 @@ if echo $HOSTNAME | grep -q db ; then
 			-e ha_storage_openstack_cloud_info_resource=c-cloud-info"
 	fi
 
-	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready
+	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready \
+		-e dnsmasq_listening_interfaces="{{['lo']|from_yaml}}"
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t node \
 		-e 'docker_options="--dns {{ansible_docker0.ipv4.address}}"'
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t pacemaker
