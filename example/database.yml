@@ -30,6 +30,7 @@ heat_stack_db:
 
        internet_http_proxy_url:
        internet_http_no_proxy:
+       static_hosts:
 
        db_net: "{{ db_net }}"
        db_subnet: "{{ db_subnet }}"
