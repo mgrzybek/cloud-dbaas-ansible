@@ -6,16 +6,9 @@
 {% endif %}
 {% endfor %}
 
-[node]
+[controlplane]
 {% for server in openstack_servers %}
-{% if server.metadata.group is defined and server.metadata.group == 'node' %}
-{{ server.name }} ansible_ssh_host={{ server.private_v4 }}
-{% endif %}
-{% endfor %}
-
-[master]
-{% for server in openstack_servers %}
-{% if server.metadata.group is defined and server.metadata.group == 'master' %}
+{% if server.metadata.group is defined and server.metadata.group == 'controlplane' %}
 {{ server.name }} ansible_ssh_host={{ server.private_v4 }}
 {% endif %}
 {% endfor %}
