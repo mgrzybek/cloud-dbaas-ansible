@@ -6,3 +6,4 @@ https://github.com/mgrzybek/ansible-bootstrap-system,/etc/ansible/roles/github/a
 https://github.com/mgrzybek/ansible-nomad,/etc/ansible/roles/github/ansible-nomad,master
 https://github.com/mgrzybek/ansible-consul,/etc/ansible/roles/github/ansible-consul,master
 https://github.com/mgrzybek/ansible-dnsmasq,/etc/ansible/roles/github/ansible-dnsmasq,master
+https://github.com/mgrzybek/ansible-traefik,/etc/ansible/roles/github/ansible-traefik,master
