@@ -8,12 +8,30 @@
 
   pre_tasks:
     - name: /etc/hosts configuration
-      when: hosts_conf is defined
-      with_items: "{{ hosts_conf }}"
+      when: bootstrap_static_hosts is defined
       lineinfile:
           path: /etc/hosts
           regexp: '^{{ item.ip }}'
-          line: "{{ item.ip }} {{ item.domains | join(' ') }}"
+          line: "{{ item.ip }}  {{ item.hosts | join(' ') }}"
+      with_items: "{{ bootstrap_static_hosts }}"
+
+    - name: systemd-resolved configuration
+      when: "'127.0.0.53' in ansible_dns.nameservers"
+      block:
+        - name: Specific domains for resolver
+          with_items:
+            - key: Domains
+              value: "node.{{ consul_domain_name }} service.{{ consul_domain_name }}"
+            - key: DNS
+              value: 127.0.0.1
+          lineinfile:
+            path: /etc/systemd/resolved.conf
+            state: present
+            regexp: '^.?{{ item.key }}='
+            line: '{{ item.key }}={{ item.value }}'
+
+        - name: Restart systemd-resolved
+          service: name=systemd-resolved state=restarted
 
     - name: openrc file
       copy:
@@ -45,12 +63,23 @@
 
 ###############################################################################
 
-- name: Controlplane configuration (nomad)
+- name: Controlplane configuration (vault + nomad)
   hosts: localhost
   tags: controlplane
 
-  roles:
-    - role: github/ansible-nomad
+  tasks:
+    - name: Vault role
+      include_role: name=github/ansible-vault
+
+    - name: Get vault root token for Nomad
+      register: consul_kv_result
+      shell: consul kv get vault/root_token
+
+    - name: Set nomad fact
+      set_fact: nomad_vault_token="{{ consul_kv_result.stdout }}"
+
+    - name: Nomad role
+      include_role: name=github/ansible-nomad
 
 ###############################################################################
 
