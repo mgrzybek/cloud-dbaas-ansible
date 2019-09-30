@@ -255,8 +255,8 @@ resources:
                             export http_proxy=$internet_http_proxy_url
                         fi
                         if [ ! -z $internet_http_no_proxy ] ; then
-                            export NO_PROXY=$internet_http_no_proxy
-                            export no_proxy=$internet_http_no_proxy
+                            export NO_PROXY=$internet_http_no_proxy,127.0.0.1,0.0.0.0,localhost
+                            export no_proxy=$internet_http_no_proxy,127.0.0.1,0.0.0.0,localhost
                         fi
 
                         # Install required packages to start git-ops-based auto-configuratiom
