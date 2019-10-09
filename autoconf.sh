@@ -68,6 +68,8 @@ if echo $HOSTNAME | grep -q lb ; then
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,pacemaker \
 		-e dnsmasq_listening_interfaces="{{['lo']|from_yaml}}"
 
+	pip install ansible
+
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t traefik \
 		-vvv
 
