@@ -66,7 +66,7 @@ if echo $HOSTNAME | grep -q lb ; then
 		-e monitoring_consul_ui=true"
 
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,pacemaker,traefik \
-		-e dnsmasq_listening_interfaces="{{['lo']|from_yaml}}"
+		-e dnsmasq_listening_interfaces="{{['lo']|from_yaml}}" -vvv
 
 	sleep 120
 
