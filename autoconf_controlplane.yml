@@ -138,8 +138,17 @@
 - name: Ingress configuration (traefik)
   hosts: localhost
   tags: traefik
+  
+  pre_tasks:
+    - name: Pre-install docker service
+      apt: name=docker.io state=present
+
+    - name: Detect docker0 interface
+      setup:
 
   roles:
+    - role: github/ansible-dnsmasq
+    - role: github/ansible-docker
     - role: github/ansible-traefik
 
   post_tasks:
