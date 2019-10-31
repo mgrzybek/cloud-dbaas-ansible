@@ -65,13 +65,8 @@ if echo $HOSTNAME | grep -q lb ; then
 		-e publication_floating_ip_id=$PUBLIC_IP \
 		-e monitoring_consul_ui=true"
 
-	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,pacemaker \
+	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready,pacemaker,traefik \
 		-e dnsmasq_listening_interfaces="{{['lo']|from_yaml}}"
-
-	pip install ansible
-
-	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t traefik \
-		-vvv
 
 	sleep 120
 
