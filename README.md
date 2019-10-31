@@ -81,9 +81,9 @@ git push
 ### The commands to run
 
 ```bash
-export DBAAS_PLAYBOOK=../cloud-dbaas-ansible
+export CLOUD_ANSIBLE=../cloud-dbaas-ansible
 # Create the control-plane
-ansible-playbook $DBAAS_PLAYBOOK/control-plane.yml -e@etc/control_plane.yml
+ansible-playbook $CLOUD_ANSIBLE/control-plane.yml -e@etc/control_plane.yml
 ```
 The HEAT stacks are deployed.
 
@@ -91,7 +91,7 @@ The HEAT stacks are deployed.
 
 ```bash
 # Create a PostgreSQL database
-ansible-playbook $DBAAS_PLAYBOOK/database.yml \
+ansible-playbook $CLOUD_ANSIBLE/database.yml \
   -e type=postgresql \
   -e db_name=my-first-db \
   -e db_size_gb=10
