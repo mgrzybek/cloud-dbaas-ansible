@@ -55,6 +55,7 @@ parameters:
 
 resources:
 
+{% if bastions_number > 0 %}
 #######################################################
 # Front networking for bastions
 
@@ -87,7 +88,6 @@ resources:
             router_id: { get_resource: admin_ssh_router }
             subnet_id: { get_resource: admin_ssh_subnet }
 
-{% if bastions_number > 0 %}
 #######################################################
 # Internal networking for bastions
 
@@ -464,7 +464,7 @@ resources:
             policies: [ 'anti-affinity' ]
 
 #######################################################
-# Scripts de démarrage
+# Startup script
     node_boot_script:
         type: OS::Heat::SoftwareConfig
         properties:
