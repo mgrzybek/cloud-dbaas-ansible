@@ -1,0 +1,59 @@
+# Copyright (C) 2019 Mathieu Grzybek
+#
+# License: GNU General Public License (GPL)
+---
+- version: 2.2
+  category: Network
+  shortdesc: Deploy a traefik and floating IP
+  longdesc: |
+    Deploy a cloned traefik resource and an openstack floating IP.
+    Some locations and order constraints are set.
+
+  parameters:
+   - name: floating_ip_id
+     shortdesc: Openstack floating IP ID
+     longdesc: Openstack floating IP ID
+     required: true
+     type: string
+
+   - name: openrc
+     shortdesc: Openstack openrc file
+     longdesc: Openstack openrc file full path
+     required: true
+     type: string
+
+   - name: attribute_name
+     shortdesc: Attribute to check for placement.
+     longdesc: Attribute to check for placement.
+     required: true
+     type: string
+
+   - name: attribute_value
+     shortdesc: Value to test.
+     longdesc: Value to test.
+     required: true
+     type: string
+
+  actions:
+    - cib: |
+        primitive traefik-service systemd:traefik
+          op monitor interval=1min
+
+        clone c-traefik traefik-service
+          meta interleave=true
+
+        location loc_c-traefik c-traefik rule -inf: {{attribute_name}} ne {{attribute_value}}
+
+    - cib: |
+        primitive publication-ip openstack-floating-ip
+          params
+            openrc="{{openrc}}"
+            ip_id="{{floating_ip_id}}"
+            subnet_id="" 
+          op monitor interval=1min
+
+        order order_cloud-info_publication-ip Mandatory: c-cloud-info publication-ip
+        order order_traefik_publication-ip Mandatory: c-traefik publication-ip
+
+        location loc_publication-ip-openstack_id publication-ip rule defined openstack_id
+        location loc_publication-ip-attribute publication-ip rule -inf: {{attribute_name}} ne {{attribute_value}}
