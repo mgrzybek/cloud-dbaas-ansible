@@ -36,19 +36,28 @@
 
   actions:
     - cib: |
+{% if traefik_use_docker | lower == 'false' %}
         primitive traefik-service systemd:traefik
           op monitor interval=1min
+{% else %}
+        primitive traefik-service ocf:heartbeat:docker
+          params
+            allow_pull=true
+            image={{ traefik_docker_image }}:{{ traefik_docker_tag }}
+            run_opts="-p {{ traefik_docker_published_ports | join('-p') }} -v {{ traefik_docker_volumes | join('-v ') }}"
+          op monitor interval=1min
+{% endif %}
 
         clone c-traefik traefik-service
           meta interleave=true
 
-        location loc_c-traefik c-traefik rule -inf: {{attribute_name}} ne {{attribute_value}}
+        location loc_c-traefik c-traefik rule -inf: {{ '{{' }}attribute_name}} ne {{ '{{' }}attribute_value}}
 
     - cib: |
         primitive publication-ip openstack-floating-ip
           params
-            openrc="{{openrc}}"
-            ip_id="{{floating_ip_id}}"
+            openrc="{{ '{{' }}openrc}}"
+            ip_id="{{ '{{' }}floating_ip_id}}"
             subnet_id="" 
           op monitor interval=1min
 
@@ -56,4 +65,4 @@
         order order_traefik_publication-ip Mandatory: c-traefik publication-ip
 
         location loc_publication-ip-openstack_id publication-ip rule defined openstack_id
-        location loc_publication-ip-attribute publication-ip rule -inf: {{attribute_name}} ne {{attribute_value}}
+        location loc_publication-ip-attribute publication-ip rule -inf: {{ '{{' }}attribute_name}} ne {{ '{{' }}attribute_value}}
