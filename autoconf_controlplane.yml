@@ -166,7 +166,7 @@
       file: path=/usr/share/crmsh/scripts/traefik state=directory
 
     - name: crmsh script to manage traefik (files)
-      copy: src=scripts/traefik.yml dest=/usr/share/crmsh/scripts/traefik/main.yml
+      template: src=traefik.crm.yml.j2 dest=/usr/share/crmsh/scripts/traefik/main.yml
 
     - name: start resources
       command: >
