@@ -44,7 +44,7 @@
           params
             allow_pull=true
             image={{ traefik_docker_image }}:{{ traefik_docker_tag }}
-            run_opts="-p {{ traefik_docker_published_ports | join('-p') }} -v {{ traefik_docker_volumes | join('-v ') }}"
+            run_opts="-p {{ traefik_docker_published_ports | join(' -p') }} -v {{ traefik_docker_volumes | join(' -v ') }}"
           op monitor interval=1min
 {% endif %}
 
