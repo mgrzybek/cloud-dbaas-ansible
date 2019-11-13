@@ -292,8 +292,13 @@ resources:
                                 >> /etc/hosts
                         fi
 
-                        # Download the ops playbook to init and bootstrap
+                        # Create local facts folder
+                        mkdir -p /etc/ansible/facts.d
+
+                        # Download the ops playbook to bootstrap
                         export REPO_PATH=/root/$(echo $gitops_repo_url | awk -F/ '{gsub(".git","");print $NF}')
+                        export ETC_PATH=$REPO_PATH/etc
+
                         if [ ! -z "$gitops_repo_username$gitops_repo_password" ] ; then
                             auth_gitops_repo_url=$(echo $gitops_repo_url | awk -F// -v user=$gitops_repo_username  -v password=$gitops_repo_password '{print $1"//"user":"password"@"$2}')
                             git clone -b $gitops_repo_checkout $auth_gitops_repo_url $REPO_PATH || exit 1
@@ -302,9 +307,10 @@ resources:
                         fi
 
                         cd $REPO_PATH
-                        export ETC_PATH=$REPO_PATH/etc
-                        export ANSIBLE_REQUIREMENTS_FILE=$ETC_PATH/ansible_requirements.txt
-                        . init.sh
+
+                        # Start autoconf
+                        ansible-galaxy install -r $ETC_PATH/ansible_requirements.yml
+                        . /root/.ansible/roles/cloud-dbaas-ansible/autoconf.sh
 
 {% for counter in range(1, controlplanes_number + 1) %}
 # {{ instance_name }}-{{ counter }}

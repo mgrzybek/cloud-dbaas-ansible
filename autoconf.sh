@@ -21,7 +21,7 @@ done
 export CONTROLPLANE_NODES_NUMBER=$(openstack server list --name controlplane | grep -c controlplane)
 
 export ANSIBLE_PLAYBOOK_OPTS=" \
-	/etc/ansible/roles/github/cloud-dbaas-ansible/autoconf_controlplane.yml \
+	/root/.ansible/roles/cloud-dbaas-ansible/autoconf_controlplane.yml \
 	-e@$ETC_PATH/instances_variables.yml \
 	-e monitoring_consul_cluster={{ansible_default_ipv4.address}} \
 	-e nomad_bootstrap_expect=$CONTROLPLANE_NODES_NUMBER \
@@ -50,7 +50,7 @@ fi
 #  * the nodes are self-configured, we need to cleanup consul resources at the end
 #
 if echo $HOSTNAME | grep -q lb ; then
-	source /etc/ansible/roles/github/cloud-dbaas-ansible/files/generate_local_facts.sh lb
+	source /root/.ansible/roles/cloud-dbaas-ansible/files/generate_local_facts.sh lb
 
 	export PUBLIC_IP=$(openstack stack show ip -c outputs -f yaml \
 		| grep -A 1 publication_floating_ip_id \
@@ -89,7 +89,7 @@ fi
 #  * the nodes are self-configured, we need to cleanup consul resources at the end
 #
 if echo $HOSTNAME | grep -q db ; then
-	source /etc/ansible/roles/github/cloud-dbaas-ansible/files/generate_local_facts.sh $DB_NAME
+	source /root/.ansible/roles/cloud-dbaas-ansible/files/generate_local_facts.sh $DB_NAME
 	
 	export DOCKER_VOLUME=$(openstack volume list -f value \
 		| fgrep $HOSTNAME \
@@ -128,3 +128,4 @@ fi
 if echo $HOSTNAME | grep -q bastion ; then
 	ansible-playbook $ANSIBLE_PLAYBOOK_OPTS -t os-ready
 fi
+
